@@ -231,7 +231,7 @@ small {
   display: grid;
   grid-template-columns: 1fr 1fr;
   align-items: center;
-  min-height: calc(100vh - 150px);
+  padding: 40px 0;
 }
 
 .hero ul {
@@ -332,6 +332,7 @@ small {
   justify-self: end;
 }
 
+
 .grid2 {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 420px));
@@ -358,6 +359,10 @@ small {
   display: grid;
   grid-template-columns: repeat(6, 1fr);
   gap: 24px 14px;
+}
+
+.ev {
+  display: block;
 }
 
 .ev .ph {
@@ -391,6 +396,7 @@ small {
 .au h4 {
   margin-top: 6px;
 }
+
 
 .rowwrap {
   position: relative;
@@ -430,6 +436,7 @@ small {
   padding: 0 10px;
   background: rgba(30, 30, 30, 0.75);
 }
+
 
 .film-top {
   display: grid;
@@ -481,6 +488,10 @@ small {
   line-height: 1.4;
 }
 
+.film-text + .film-text {
+  margin-top: 12px;
+}
+
 .film-poster,
 .player {
   display: flex;
@@ -515,6 +526,52 @@ small {
 .person h4 {
   margin-top: 6px;
   font-size: 13px;
+}
+
+
+.detail {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: center;
+  gap: 40px;
+}
+
+.detail-author {
+  grid-template-columns: 260px 1fr;
+  align-items: start;
+}
+
+.detail .ph {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 4 / 3;
+  color: #ccc;
+  font-size: 12px;
+}
+
+.detail-author .ph {
+  aspect-ratio: 3 / 4;
+}
+
+.detail-date {
+  display: block;
+  margin-bottom: 8px;
+  color: #ccc;
+  font-size: 16px;
+}
+
+.detail .film-h {
+  margin-top: 24px;
+}
+
+.detail .film-text {
+  max-width: 520px;
+  font-size: 14px;
+}
+
+.detail .btn {
+  margin-top: 24px;
 }
 
 .showpg {
@@ -604,6 +661,7 @@ small {
   text-align: center;
 }
 
+
 @media (max-width: 900px) {
 
   .top {
@@ -687,8 +745,14 @@ small {
     justify-self: start;
   }
 
-  .film-top {
+  .film-top,
+  .detail,
+  .detail-author {
     grid-template-columns: 1fr;
+  }
+
+  .detail-author .ph {
+    max-width: 260px;
   }
 
   .film-poster {
@@ -710,4 +774,60 @@ small {
   .form .ok {
     grid-column: 1;
   }
+}
+
+.ph,
+.film-poster,
+.player {
+  overflow: hidden;
+}
+
+.ph img,
+.film-poster img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.player iframe,
+.player video {
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+.ev-i p {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.state {
+  padding: 40px 0;
+  color: var(--mute);
+  font-size: 14px;
+  text-align: center;
+}
+a.person {
+  display: block;
+}
+
+a.person .ph img {
+  transition: 0.25s;
+}
+
+a.person:hover .ph img {
+  filter: brightness(1.15);
+  transform: scale(1.04);
+}
+
+a.person:hover h4 {
+  color: var(--pink);
+}
+
+.detail-author small {
+  display: block;
+  font-size: 18px;
 }

@@ -1,42 +1,126 @@
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
 
-const repeat = (render, n) => Array.from({ length: n }, render).join('');
+const cards = (list, render) => list.map(render).join('');
+
+const byId = (list, id) =>
+  id === undefined ? list[0] : list.find(item => String(item.id) === String(id));
+
+const pic = (src, label = '') => src ? `<img src="${src}" alt="" loading="lazy">` : label;
+
+const paragraphs = text => text.split('\n').map(t => `<p class="film-text">${t}</p>`).join('');
+
+const state = message => `<p class="state">${message}</p>`;
+const notFound = () => state('Страница не найдена');
 
 
-const eventCard = () => `
-  <article class="ev">
-    <div class="ph"></div>
+const lorem = 'Здесь будет описание. Здесь будет много букв для описания. Здесь будет много букв для описания. Здесь будет много букв для описания.';
+const make = (n, fn) => Array.from({ length: n }, (_, i) => ({ id: i + 1, ...fn(i) }));
+
+
+const vydohni = {
+  title: 'Выдохни', year: 2026, country: 'Россия', genre: 'Социальная драма',
+  director: 'Алиса Сергеева', directorId: 'alisa-sergeeva', duration: '',
+  description: [
+    'О чем фильм?',
+    '«Выдохни» — короткометражный фильм о молодой матери, которая в заботе о ребёнке постепенно забывает о себе. Оставшись один на один с младенцем, она сталкивается с усталостью, одиночеством и потерей собственной личности.',
+    'Описание:',
+    'Фильм показывает неидеальную сторону материнства — эмоциональное выгорание, постоянную отдачу себя семье и необходимость иногда остановиться, выйти из привычного ритма и просто побыть собой. Маленький момент тишины и свободы помогает героине восстановить силы и снова почувствовать связь с собой и миром.'
+  ].join('\n'),
+  poster: 'img/vydohni.jpg', video: 'https://youtu.be/ZaKhUAJvSd4?si=iT8E09_NkApAMQKY',
+  isNew: true,
+  isPick: false,
+  actors: [
+    { pid: 'maria-kairova', name: 'Мария Каирова', character: 'Главная героиня', role: 'Актриса', photo: 'img/people/maria.jpg' },
+    { pid: 'dominika-kairova', name: 'Доминика Каирова', character: 'Дочка героини', role: 'Актриса', photo: 'img/people/dominika.jpg' },
+    { pid: 'daniel-kairov', name: 'Даниэль Каиров', character: 'Сын героини', role: 'Актер', photo: 'img/people/daniel.jpg' }
+  ],
+  crew: [
+    { pid: 'alisa-sergeeva', name: 'Сергеева Алиса Васильевна', role: 'Режиссер, Продюсер', photo: 'img/people/alisa.jpg' },
+    { pid: 'sergey-sergeev', name: 'Сергей Сергеев', role: 'Продюсер', photo: 'img/people/sergey.jpg' },
+    { pid: 'olga-smirnova', name: 'Ольга Смирнова', role: 'Режиссер монтажа', photo: 'img/people/olga.jpg' },
+    { pid: 'ruslana-berezkina', name: 'Руслана Березкина', role: 'Режиссер монтажа', photo: 'img/people/ruslana.jpg' }
+  ]
+};
+
+const stubFilm = i => ({
+  title: 'Название фильма', year: 1234, country: 'Россия', genre: 'Комедия',
+  director: 'Артемов', duration: '1,38', description: lorem,
+  poster: '', video: '',
+  isNew: i < 6,
+  isPick: i > 3,
+  actors: make(5, () => ({ name: 'ФИ актера', role: 'роль', photo: '' })),
+  crew: make(4, () => ({ name: 'ФИ', role: 'должность', photo: '' }))
+});
+
+const films = make(10, i => i === 0 ? vydohni : stubFilm(i));
+
+
+const events = make(12, () => ({
+  title: 'Название мероприятия', date: '01.01', description: lorem, image: ''
+}));
+
+const premieres = make(6, i => ({
+  title: 'Название фильма', date: '01.01', description: lorem, image: '', filmId: i + 1
+}));
+
+const alisaAuthor = {
+  pid: 'alisa-sergeeva', name: 'Сергеева Алиса Васильевна', role: 'Режиссер',
+  bio: [
+    'Я — Алиса Сергеева, продюсер, видеограф и лайф-фотограф. В своих работах стремлюсь сохранять честность момента, показывая человека без масок и лишнего глянца.',
+    'Мой путь в кино начался с площадки программы «Что? Где? Когда?», где я впервые почувствовала магию создания экранных историй. Сегодня я получаю высшее образование в сфере продюсирования кино и телевидения, создаю проекты и ищу смыслы через визуальное искусство.',
+    'Для меня кадр — это не просто изображение, а живой диалог с человеком и его историей.'
+  ].join('\n'), photo: 'img/people/alisa.jpg'
+};
+
+const stubAuthor = () => ({
+  name: 'Имя Фамилия', role: 'должность', bio: lorem, photo: ''
+});
+
+const authors = make(12, i => i === 0 ? alisaAuthor : stubAuthor());
+
+const show = { title: 'Название шоу', description: 'Краткое описание сути шоу' };
+const episodes = make(3, i => ({ title: `серия ${i + 1}`, description: lorem, video: '' }));
+
+
+const eventCard = (e, page) => `
+  <a class="ev" href="#/${page}/${e.id}">
+    <div class="ph">${pic(e.image)}</div>
     <div class="ev-i">
-      <b>01.01</b>
+      <b>${e.date}</b>
       <div>
-        <h4>Название мероприятия</h4>
-        <p>Краткое подробное описание мероприятия в две или три строчки</p>
+        <h4>${e.title}</h4>
+        <p>${e.description}</p>
       </div>
     </div>
-  </article>`;
-
-const filmCard = () => `
-  <a class="fl" href="#/film">
-    <div class="ph"></div>
-    <h4>Название фильма</h4>
-    <small>жанр</small>
   </a>`;
 
-const authorCard = () => `
+const filmCard = f => `
+  <a class="fl" href="#/film/${f.id}">
+    <div class="ph">${pic(f.poster)}</div>
+    <h4>${f.title}</h4>
+    <small>${f.genre}</small>
+  </a>`;
+
+const authorCard = a => `
   <article class="au">
-    <div class="ph"></div>
-    <h4>Имя Фамилия</h4>
-    <small>должность</small><br>
-    <a class="pill">фильмография</a>
+    <div class="ph">${pic(a.photo)}</div>
+    <h4>${a.name}</h4>
+    <small>${a.role}</small><br>
+    <a class="pill" href="#/author/${a.id}">фильмография</a>
   </article>`;
 
-const personCard = (name, role) => `
-  <article class="person">
-    <div class="ph"></div>
-    <h4>${name}</h4>
-    <small>${role}</small>
-  </article>`;
+const personCard = p => {
+  const inner = `
+    <div class="ph">${pic(p.photo)}</div>
+    <h4>${p.name}</h4>
+    <small>${p.character || p.role}</small>`;
+  if (!p.pid) return `<article class="person">${inner}</article>`;
+
+  const author = authors.find(a => a.pid === p.pid);
+  const href = author ? `#/author/${author.id}` : `#/person/${p.pid}`;
+  return `<a class="person" href="${href}">${inner}</a>`;
+};
 
 const searchBox = () => `
   <label class="search">
@@ -50,27 +134,36 @@ const titleBar = title => `
     ${searchBox()}
   </div>`;
 
-const filmRow = title => `
+const filmRow = (title, list) => !list.length ? '' : `
   <section>
     <h2>${title}</h2>
     <div class="rowwrap">
-      <div class="row">${repeat(filmCard, 10)}</div>
+      <div class="row">${cards(list, filmCard)}</div>
       <button class="arr arr-prev" aria-label="Назад" hidden>‹</button>
       <button class="arr arr-next" aria-label="Далее">›</button>
     </div>
   </section>
   <hr>`;
 
-const marquee = (text = 'КИНОТЕАТР АВТОРСКОГО КИНО') => {
-  const group = repeat(() => `<span>${text}</span>`, 3);
-  return `
-    <div class="big marquee" aria-label="${text}">
-      <div class="marquee-track">
-        <div class="marquee-group">${group}</div>
-        <div class="marquee-group" aria-hidden="true">${group}</div>
-      </div>
-    </div>`;
-};
+function embedUrl(url) {
+  let m = url.match(/(?:youtube\.com\/(?:watch\?(?:.*&)?v=|embed\/|shorts\/|live\/)|youtu\.be\/)([\w-]{11})/i);
+  if (m) return `https://www.youtube.com/embed/${m[1]}`;
+
+  m = url.match(/drive\.google\.com\/(?:file\/d\/|open\?id=|uc\?(?:.*&)?id=)([\w-]+)/i);
+  if (m) return `https://drive.google.com/file/d/${m[1]}/preview`;
+
+  return url;
+}
+
+function player(url) {
+  if (!/^https?:\/\//i.test(url || '')) return '<div class="player">видеоплеер</div>';
+  if (/\.(mp4|webm)(\?|$)/i.test(url)) {
+    return `<div class="player"><video controls src="${url}"></video></div>`;
+  }
+  return `<div class="player"><iframe src="${embedUrl(url)}" allowfullscreen loading="lazy"
+         referrerpolicy="strict-origin-when-cross-origin"
+         allow="autoplay; fullscreen; picture-in-picture"></iframe></div>`;
+}
 
 const applyForm = () => `
   <form class="form" novalidate>
@@ -87,22 +180,16 @@ const applyForm = () => `
     <p class="ok" hidden>Спасибо! Заявка отправлена.</p>
   </form>`;
 
-const filmInfo = {
-  title: 'Название фильма, год выхода',
-  specs: [
-    ['Год производства:', '1234'],
-    ['Страна:', 'Россия'],
-    ['Жанр:', 'Комедия'],
-    ['Режиссер:', 'Артемов'],
-    ['Длительность:', '1,38']
-  ],
-  text: 'Здесь будет много букв для описания основной завязки фильма. Здесь будет много букв для описания основной завязки фильма. Здесь будет много букв для описания основной завязки фильма. Здесь будет много букв для описания основной завязки фильма. Здесь будет много букв для описания основной завязки фильма. Здесь будет много букв для описания основной завязки фильма.'
-};
 
 const pages = {
 
   home: () => `
-    ${marquee()}
+    <div class="big marquee" aria-label="КИНОТЕАТР АВТОРСКОГО КИНО">
+      <div class="marquee-track">
+        <div class="marquee-group">${'<span>КИНОТЕАТР АВТОРСКОГО КИНО</span>'.repeat(3)}</div>
+        <div class="marquee-group" aria-hidden="true">${'<span>КИНОТЕАТР АВТОРСКОГО КИНО</span>'.repeat(3)}</div>
+      </div>
+    </div>
 
     <section class="hero" id="top">
       <ul>
@@ -112,20 +199,20 @@ const pages = {
         <li><a data-scroll="apply">Оставить заявку</a></li>
         <li><a data-scroll="contacts">Контакты</a></li>
       </ul>
-      <img src="logo.png" alt="ACTION">
+      <img src="logo-3d.png" alt="ACTION">
     </section>
     <hr>
 
     <section class="center" id="films">
       <h2>Наши фильмы</h2>
-      <div class="grid4">${repeat(filmCard, 4)}</div>
+      <div class="grid4">${cards(films.slice(0, 4), filmCard)}</div>
       <div class="more"><a class="btn" href="#/films">посмотреть все</a></div>
     </section>
     <hr>
 
     <section class="center" id="afisha">
       <h2>Афиша</h2>
-      <div class="grid3">${repeat(eventCard, 3)}</div>
+      <div class="grid3">${cards(events.slice(0, 3), e => eventCard(e, 'event'))}</div>
       <div class="more"><a class="btn" href="#/afisha">перейти к афише</a></div>
     </section>
     <hr>
@@ -152,58 +239,136 @@ const pages = {
 
   films: () =>
     titleBar('Фильмы') +
-    filmRow('Наши фильмы') +
-    filmRow('Новинки') +
-    filmRow('Стоит посмотреть'),
+    filmRow('Наши фильмы', films) +
+    filmRow('Новинки', films.filter(f => f.isNew)) +
+    filmRow('Стоит посмотреть', films.filter(f => f.isPick)),
 
-  film: () => `
-    <section class="film-top">
-      <div>
-        <h1 class="film-title">${filmInfo.title}</h1>
-        <h3 class="film-h">О фильме</h3>
-        <dl class="film-specs">
-          ${filmInfo.specs.map(([label, value]) => `<dt>${label}</dt><dd>${value}</dd>`).join('')}
-        </dl>
-        <p class="film-text">${filmInfo.text}</p>
-      </div>
-      <div class="film-poster">постер фильма</div>
-    </section>
+  film: id => {
+    const f = byId(films, id);
+    if (!f) return notFound();
 
-    <!-- Сюда можно вставить <video controls src="..."> или iframe с плеером -->
-    <div class="player">видеоплеер</div>
+    const specs = [['Год производства:', f.year], ['Страна:', f.country], ['Жанр:', f.genre],
+    ['Режиссер:', f.director], ['Длительность:', f.duration]].filter(([, v]) => v);
 
-    <h3 class="film-h">Актерский состав</h3>
-    <div class="people">${repeat(() => personCard('ФИ актера', 'роль'), 5)}</div>
-    <hr>
+    return `
+      <section class="film-top">
+        <div>
+          <h1 class="film-title">${f.title}, ${f.year}</h1>
+          <h3 class="film-h">О фильме</h3>
+          <dl class="film-specs">${specs.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl>
+          ${f.description.split('\n').map(t => `<p class="film-text">${t}</p>`).join('')}
+        </div>
+        <div class="film-poster">${pic(f.poster, 'постер фильма')}</div>
+      </section>
 
-    <h3 class="film-h">Над фильмом работали</h3>
-    <div class="people">${repeat(() => personCard('ФИ', 'должность'), 4)}</div>`,
+      ${player(f.video)}
+
+      ${f.actors.length ? `<h3 class="film-h">Актерский состав</h3>
+        <div class="people">${cards(f.actors, personCard)}</div><hr>` : ''}
+      ${f.crew.length ? `<h3 class="film-h">Над фильмом работали</h3>
+        <div class="people">${cards(f.crew, personCard)}</div>` : ''}`;
+  },
 
   afisha: () =>
     titleBar('Афиша') +
-    `<div class="grid4">${repeat(eventCard, 12)}</div>`,
+    `<div class="grid4">${cards(events, e => eventCard(e, 'event'))}</div>`,
+
+  event: id => {
+    const e = byId(events, id);
+    if (!e) return notFound();
+    return `
+      <section class="detail">
+        <div class="ph">${pic(e.image, 'изображение')}</div>
+        <div>
+          <span class="detail-date">${e.date}</span>
+          <h1 class="film-title">${e.title}</h1>
+          <p class="film-text">${e.description}</p>
+        </div>
+      </section>`;
+  },
 
   premieres: () =>
     titleBar('Премьеры') +
-    `<div class="grid2">${repeat(eventCard, 6)}</div>`,
+    `<div class="grid2">${cards(premieres, p => eventCard(p, 'premiere'))}</div>`,
+
+  premiere: id => {
+    const p = byId(premieres, id);
+    if (!p) return notFound();
+    return `
+      <section class="detail">
+        <div class="ph">${pic(p.image, 'изображение')}</div>
+        <div>
+          <h1 class="film-title">${p.title}</h1>
+          <p class="film-text">${p.description}</p>
+          <a class="btn" href="#/film/${p.filmId}">смотреть</a>
+        </div>
+      </section>`;
+  },
 
   show: () => `
     <section class="showpg">
-      <h1>Название шоу</h1>
-      <p>Краткое описание сути шоу</p>
-      <a class="btn">посмотреть последнюю серию</a>
+      <h1>${show.title}</h1>
+      <p>${show.description}</p>
+      <a class="btn" href="#/episode">посмотреть последнюю серию</a>
     </section>`,
 
+  episode: () => {
+    const ep = episodes[episodes.length - 1];
+    return `
+      <h1 class="film-title">${show.title}, ${ep.title}</h1>
+      ${player(ep.video)}
+      <h3 class="film-h">О серии</h3>
+      <p class="film-text">${ep.description}</p>`;
+  },
+
   partners: () =>
-    titleBar('Партнеры') +
-    `<h2>Наши авторы</h2>
-     <div class="grid6">${repeat(authorCard, 12)}</div>`,
+    titleBar('Наши авторы') +
+    `<div class="grid6">${cards(authors, authorCard)}</div>`,
+
+  author: id => {
+    const a = byId(authors, id);
+    if (!a) return notFound();
+    const list = a.pid ? films.filter(f => f.directorId === a.pid) : [];
+    return `
+      <section class="detail detail-author">
+        <div class="ph">${pic(a.photo, 'фото автора')}</div>
+        <div>
+          <h1 class="film-title">${a.name}</h1>
+          <small>${a.role}</small>
+          ${a.bio ? `<h3 class="film-h">Об авторе</h3>${paragraphs(a.bio)}` : ''}
+        </div>
+      </section>
+      ${list.length ? `<h3 class="film-h">Фильмография</h3>
+        <div class="grid6">${cards(list, filmCard)}</div>` : ''}`;
+  },
+
+  person: pid => {
+    const list = films.filter(f => [...f.actors, ...f.crew].some(p => p.pid === pid));
+    if (!list.length) return notFound();
+
+    const entries = list.flatMap(f => [...f.actors, ...f.crew]).filter(p => p.pid === pid);
+    const p = entries[0];
+    const roles = [...new Set(entries.map(e => e.role))].join(', ');
+
+    return `
+      <section class="detail detail-author">
+        <div class="ph">${pic(p.photo, 'фото')}</div>
+        <div>
+          <h1 class="film-title">${p.name}</h1>
+          <small>${roles}</small>
+          ${p.bio ? `<h3 class="film-h">Об авторе</h3>${paragraphs(p.bio)}` : ''}
+        </div>
+      </section>
+      <h3 class="film-h">Фильмография</h3>
+      <div class="grid6">${cards(list, filmCard)}</div>`;
+  },
 
   coop: () => `
     <h1>Сотрудничество</h1>
     <h2 class="sub" style="margin-top:20px">Оставить заявку</h2>
     ${applyForm()}`
 };
+
 
 const menu = [
   { id: 'home', title: 'Главная' },
@@ -226,17 +391,21 @@ function setMenu(open) {
   burgerBtn.setAttribute('aria-expanded', open);
 }
 
-function route() {
-  const hash = location.hash.replace('#/', '').split('/')[0];
-  const id = pages[hash] ? hash : 'home';
-  const menuId = id === 'film' ? 'films' : id;
 
-  $('#app').innerHTML = pages[id]();
+const parentTab = {
+  film: 'films', person: 'films', event: 'afisha', premiere: 'premieres', episode: 'show', author: 'partners'
+};
+
+function route() {
+  const [hash, param] = location.hash.replace('#/', '').split('/');
+  const id = Object.prototype.hasOwnProperty.call(pages, hash) ? hash : 'home';
+
+  $('#app').innerHTML = pages[id](param);
   setMenu(false);
   document.body.className = id;
 
   $$('#nav a').forEach(link =>
-    link.classList.toggle('on', link.dataset.k === menuId)
+    link.classList.toggle('on', link.dataset.k === (parentTab[id] || id))
   );
 
   window.scrollTo({ top: 0, behavior: 'instant' });
@@ -244,6 +413,7 @@ function route() {
 
 addEventListener('hashchange', route);
 route();
+
 
 document.addEventListener('click', e => {
   if (e.target.closest('.burger')) {
@@ -280,8 +450,7 @@ document.addEventListener('input', e => {
   if (field.matches('.search input')) {
     const query = field.value.trim().toLowerCase();
     $$('.ev, .fl, .au').forEach(card => {
-      const match = card.textContent.toLowerCase().includes(query);
-      card.style.display = match ? '' : 'none';
+      card.style.display = card.textContent.toLowerCase().includes(query) ? '' : 'none';
     });
   }
 
