@@ -43,6 +43,45 @@ const vydohni = {
   ]
 };
 
+const poTuStoronu = {
+  title: 'По ту сторону кадра', year: 2026, country: 'Россия', genre: 'Драма, 14+',
+  director: 'Карапетова Эмилия', directorId: 'emilia-karapetova', duration: '',
+  description: [
+    'О чём фильм?',
+    '«По ту сторону кадра» — короткометражный игровой фильм о молодой девушке, которая сталкивается с суровой реальностью кинопроизводства. Её идеализированные представления о кино постепенно разрушаются, заставляя переосмыслить собственные мечты, ценности и отношение к творчеству.',
+    'Описание фильма',
+    '«По ту сторону кадра» — короткометражная игровая трагикомедия о столкновении творческих амбиций с суровой реальностью кинопроизводства.',
+    'В центре истории — молодая девушка, которая мечтает создавать настоящее кино, но оказывается в мире, где вдохновение постоянно сталкивается с бытовыми трудностями, непредвиденными обстоятельствами и человеческим фактором. То, что представлялось ей увлекательным творческим процессом, постепенно превращается в череду испытаний, заставляющих усомниться в собственных силах и выбранном пути.',
+    'Через комичные, абсурдные и одновременно драматичные ситуации фильм раскрывает изнанку киноиндустрии, показывая, что за каждым красивым кадром стоят не только профессионализм и талант, но и ошибки, конфликты, компромиссы и огромный труд целой команды.',
+    'Особое внимание уделяется развитию регионального кинематографа. Действие разворачивается в Калужской области, где создание кино становится настоящим испытанием для молодых авторов, стремящихся реализовать свои идеи вдали от крупных кинопроизводственных центров.',
+    '«По ту сторону кадра» — это история не столько о том, как снимают кино, сколько о людях, которые продолжают его создавать, даже когда всё идёт не по плану. Фильм с юмором и искренностью рассказывает о взрослении, разочаровании, дружбе и поиске настоящего смысла творчества, напоминая, что иногда самое важное происходит не перед камерой, а по ту сторону кадра.'
+  ].join('\n'),
+  poster: 'img/po-tu-storonu-kadra.jpg', video: '',
+  isNew: true,
+  isPick: false,
+  actors: [
+    { pid: 'margarita-proskurina', name: 'Маргарита Проскурина', role: 'Актриса', photo: 'img/people/proskurina.jpg' },
+    { pid: 'anna-shestopalova', name: 'Анна Шестопалова', role: 'Актриса', photo: 'img/people/shestopalova.jpg' },
+    { pid: 'valeriy-bordachev', name: 'Валерий Бордачёв', role: 'Актер', photo: 'img/people/bordachev.jpg' },
+    { pid: 'evgeniy-bobrikov', name: 'Евгений Бобриков', role: 'Актер', photo: 'img/people/bobrikov.jpg' },
+    { pid: 'aleksey-frey', name: 'Алексей Фрей', role: 'Актер', photo: 'img/people/frey.jpg' },
+    { pid: 'lyubov-yurevna', name: 'Любовь Юрьевна', role: 'Актриса', photo: 'img/people/lyubov.jpg' },
+    { pid: 'lina-yurlova', name: 'Лина Юрлова', role: 'Актриса', photo: 'img/people/yurlova.jpg' }
+  ],
+  crew: [
+    { pid: 'emilia-karapetova', name: 'Карапетова Эмилия', role: 'Режиссер, Продюсер, Режиссер монтажа', photo: 'img/people/karapetova.jpg' },
+    { pid: 'aleksey-zolotov', name: 'Алексей Золотов', role: 'Продюсер', photo: 'img/people/zolotov.jpg' },
+    { pid: 'semyon-kleshchev', name: 'Клещёв Семён', role: 'Оператор', photo: 'img/people/kleshchev.jpg' },
+    { pid: 'alina-zhumaeva', name: 'Жумаева Алина', role: 'Второй режиссер', photo: 'img/people/zhumaeva.jpg' },
+    { pid: 'mikhail-androsov', name: 'Андросов Михаил', role: 'Гафер', photo: 'img/people/androsov.jpg' },
+    { pid: 'leyla-rybakova', name: 'Рыбакова Лейла', role: 'Звукооператор', photo: 'img/people/rybakova.jpg' },
+    { pid: 'aleksey-urmanov', name: 'Урманов Алексей', role: 'Сценарист', photo: 'img/people/urmanov.jpg' },
+    { pid: 'ksenia-arzina', name: 'Арзина Ксения', role: 'Художник-раскадровщик', photo: 'img/people/arzina.jpg' },
+    { pid: 'margarita-matveeva', name: 'Матвеева Маргарита', role: 'Художник-постановщик', photo: 'img/people/matveeva.jpg' },
+    { pid: 'vyacheslav-prokhorov', name: 'Прохоров Вячеслав', role: 'Колорист', photo: 'img/people/prokhorov.jpg' }
+  ]
+};
+
 const stubFilm = i => ({
   title: 'Название фильма', year: 1234, country: 'Россия', genre: 'Комедия',
   director: 'Артемов', duration: '1,38', description: lorem,
@@ -53,7 +92,7 @@ const stubFilm = i => ({
   crew: make(4, () => ({ name: 'ФИ', role: 'должность', photo: '' }))
 });
 
-const films = make(10, i => i === 0 ? vydohni : stubFilm(i));
+const films = make(10, i => i === 0 ? vydohni : i === 1 ? poTuStoronu : stubFilm(i));
 
 
 const events = make(12, () => ({
@@ -73,11 +112,16 @@ const alisaAuthor = {
   ].join('\n'), photo: 'img/people/alisa.jpg'
 };
 
+const emiliaAuthor = {
+  pid: 'emilia-karapetova', name: 'Карапетова Эмилия', role: 'Режиссер',
+  bio: lorem, photo: 'img/people/karapetova.jpg'
+};
+
 const stubAuthor = () => ({
   name: 'Имя Фамилия', role: 'должность', bio: lorem, photo: ''
 });
 
-const authors = make(12, i => i === 0 ? alisaAuthor : stubAuthor());
+const authors = make(12, i => i === 0 ? alisaAuthor : i === 1 ? emiliaAuthor : stubAuthor());
 
 const show = { title: 'Название шоу', description: 'Краткое описание сути шоу' };
 const episodes = make(3, i => ({ title: `серия ${i + 1}`, description: lorem, video: '' }));
@@ -121,6 +165,13 @@ const personCard = p => {
   const href = author ? `#/author/${author.id}` : `#/person/${p.pid}`;
   return `<a class="person" href="${href}">${inner}</a>`;
 };
+
+const peopleRow = list => `
+  <div class="rowwrap">
+    <div class="row">${cards(list, personCard)}</div>
+    <button class="arr arr-prev" aria-label="Назад" hidden>‹</button>
+    <button class="arr arr-next" aria-label="Далее">›</button>
+  </div>`;
 
 const searchBox = () => `
   <label class="search">
@@ -253,7 +304,7 @@ const pages = {
     return `
       <section class="film-top">
         <div>
-          <h1 class="film-title">${f.title}, ${f.year}</h1>
+          <h1 class="film-title">${f.title}${f.year ? `, ${f.year}` : ''}</h1>
           <h3 class="film-h">О фильме</h3>
           <dl class="film-specs">${specs.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl>
           ${f.description.split('\n').map(t => `<p class="film-text">${t}</p>`).join('')}
@@ -263,10 +314,13 @@ const pages = {
 
       ${player(f.video)}
 
+      ${f.actors.length || f.crew.length
+        ? `<div class="more"><button class="btn" data-credits="${f.id}">смотреть титры</button></div>` : ''}
+
       ${f.actors.length ? `<h3 class="film-h">Актерский состав</h3>
-        <div class="people">${cards(f.actors, personCard)}</div><hr>` : ''}
+        ${peopleRow(f.actors)}<hr>` : ''}
       ${f.crew.length ? `<h3 class="film-h">Над фильмом работали</h3>
-        <div class="people">${cards(f.crew, personCard)}</div>` : ''}`;
+        ${peopleRow(f.crew)}` : ''}`;
   },
 
   afisha: () =>
@@ -376,7 +430,7 @@ const menu = [
   { id: 'afisha', title: 'Афиша' },
   { id: 'premieres', title: 'Премьеры' },
   { id: 'show', title: 'Шоу' },
-  { id: 'partners', title: 'Партнеры' },
+  { id: 'partners', title: 'Авторы' },
   { id: 'coop', title: 'Сотрудничество' }
 ];
 
@@ -396,11 +450,63 @@ const parentTab = {
   film: 'films', person: 'films', event: 'afisha', premiere: 'premieres', episode: 'show', author: 'partners'
 };
 
+function closeCredits() {
+  const box = $('.credits');
+  if (!box) return;
+  box.remove();
+  document.body.style.overflow = '';
+}
+
+function openCredits(film) {
+  if (!film || $('.credits')) return;
+
+  const actors = film.actors.length ? `
+    <h3>В ролях</h3>
+    ${film.actors.map(p => `
+      <div class="cr"><b>${p.name}</b>${p.character ? `<span>${p.character}</span>` : ''}</div>`).join('')}` : '';
+
+  const crew = film.crew.length ? `
+    <h3>Над фильмом работали</h3>
+    ${film.crew.map(p => `
+      <div class="cr"><span>${p.role}</span><b>${p.name}</b></div>`).join('')}` : '';
+
+  const seconds = Math.round(18 + (film.actors.length + film.crew.length) * 3.2);
+  const box = document.createElement('div');
+  box.className = 'credits';
+  box.setAttribute('role', 'dialog');
+  box.setAttribute('aria-label', 'Титры');
+  box.innerHTML = `
+    <button class="credits-close" aria-label="Закрыть">×</button>
+    <div class="credits-roll" style="--dur:${seconds}s">
+      <h2>${film.title}</h2>
+      ${film.year ? `<p class="credits-year">${film.year}</p>` : ''}
+      ${actors}
+      ${crew}
+      <img class="credits-logo" src="logo-3d.png" alt="THE ACTION">
+    </div>
+    <p class="credits-hint">клик — пауза · Esc — закрыть</p>`;
+
+  document.body.append(box);
+  document.body.style.overflow = 'hidden';
+
+  $('.credits-roll', box).addEventListener('animationend', () => setTimeout(closeCredits, 1500));
+}
+
+function syncArrows() {
+  $$('.rowwrap').forEach(wrap => {
+    const row = $('.row', wrap);
+    $('.arr-prev', wrap).hidden = row.scrollLeft < 10;
+    $('.arr-next', wrap).hidden = row.scrollLeft + row.clientWidth >= row.scrollWidth - 10;
+  });
+}
+
 function route() {
+  closeCredits();
   const [hash, param] = location.hash.replace('#/', '').split('/');
   const id = Object.prototype.hasOwnProperty.call(pages, hash) ? hash : 'home';
 
   $('#app').innerHTML = pages[id](param);
+  syncArrows();
   setMenu(false);
   document.body.className = id;
 
@@ -412,6 +518,7 @@ function route() {
 }
 
 addEventListener('hashchange', route);
+addEventListener('resize', syncArrows);
 route();
 
 
@@ -425,6 +532,15 @@ document.addEventListener('click', e => {
   const anchor = e.target.closest('[data-scroll]');
   if (anchor) {
     $('#' + anchor.dataset.scroll).scrollIntoView({ behavior: 'smooth' });
+  }
+
+  const creditsBtn = e.target.closest('[data-credits]');
+  if (creditsBtn) openCredits(byId(films, creditsBtn.dataset.credits));
+
+  const creditsBox = e.target.closest('.credits');
+  if (creditsBox) {
+    if (e.target.closest('.credits-close')) closeCredits();
+    else creditsBox.classList.toggle('paused');
   }
 
   const arrow = e.target.closest('.arr');
@@ -489,4 +605,14 @@ document.addEventListener('submit', e => {
 
   $('.ok', form).hidden = false;
   form.reset();
+});
+
+document.addEventListener('keydown', e => {
+  const box = $('.credits');
+  if (!box) return;
+  if (e.key === 'Escape') closeCredits();
+  if (e.key === ' ') {
+    e.preventDefault();
+    box.classList.toggle('paused');
+  }
 });

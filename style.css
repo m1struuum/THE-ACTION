@@ -385,7 +385,7 @@ small {
 }
 
 .fl .ph {
-  aspect-ratio: 3 / 4;
+  aspect-ratio: 2 / 3;
 }
 
 .au .ph {
@@ -481,7 +481,7 @@ small {
 }
 
 .film-text {
-  max-width: 560px;
+  max-width: 900px;
   color: var(--mute);
   font-size: 12px;
   font-weight: 500;
@@ -503,7 +503,7 @@ small {
 }
 
 .film-poster {
-  aspect-ratio: 3 / 4;
+  aspect-ratio: 2 / 3;
 }
 
 .player {
@@ -830,4 +830,137 @@ a.person:hover h4 {
 .detail-author small {
   display: block;
   font-size: 18px;
+}
+
+.row .person {
+  flex: 0 0 150px;
+}
+
+@media (max-width: 900px) {
+  .row .person {
+    flex-basis: 110px;
+  }
+}
+
+
+/* Титры */
+.credits {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  overflow: hidden;
+  background: #000;
+  cursor: pointer;
+}
+
+.credits-close {
+  position: fixed;
+  top: 16px;
+  right: 24px;
+  z-index: 2;
+  border: 0;
+  background: none;
+  color: #ddd;
+  font-size: 44px;
+  line-height: 1;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.credits-close:hover {
+  color: var(--pink);
+}
+
+.credits-roll {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  padding: 0 20px;
+  text-align: center;
+  animation: credits-roll var(--dur, 60s) linear forwards;
+}
+
+.credits.paused .credits-roll {
+  animation-play-state: paused;
+}
+
+@keyframes credits-roll {
+  to {
+    transform: translateY(calc(-100% - 100vh));
+  }
+}
+
+.credits h2 {
+  margin: 0 0 10px;
+  color: #eee;
+  font-size: clamp(32px, 6vw, 64px);
+  font-weight: 600;
+}
+
+.credits-year {
+  margin-bottom: 90px;
+  color: var(--mute);
+  font-size: 18px;
+  letter-spacing: 0.3em;
+}
+
+.credits h3 {
+  margin: 90px 0 40px;
+  color: var(--pink);
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0.35em;
+  text-transform: uppercase;
+}
+
+.cr {
+  margin-bottom: 34px;
+}
+
+.cr b {
+  display: block;
+  color: #ddd;
+  font-size: clamp(20px, 3vw, 30px);
+  font-weight: 400;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.cr span {
+  display: block;
+  margin: 4px 0;
+  color: var(--mute);
+  font-size: 13px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+
+.credits-logo {
+  display: block;
+  width: min(60vw, 320px);
+  margin: 120px auto 0;
+  padding-bottom: 30px;
+}
+
+.credits-hint {
+  position: fixed;
+  bottom: 14px;
+  left: 0;
+  right: 0;
+  color: #555;
+  font-size: 11px;
+  text-align: center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .credits {
+    overflow: auto;
+  }
+
+  .credits-roll {
+    position: static;
+    padding: 90px 20px 60px;
+    animation: none;
+  }
 }
