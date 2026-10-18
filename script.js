@@ -21,12 +21,11 @@ const make = (n, fn) => Array.from({ length: n }, (_, i) => ({ id: i + 1, ...fn(
 const vydohni = {
   title: 'Выдохни', year: 2026, country: 'Россия', genre: 'Социальная драма',
   director: 'Алиса Сергеева', directorId: 'alisa-sergeeva', duration: '',
+  summary: '«Выдохни» — короткометражный фильм о молодой матери, которая в заботе о ребёнке постепенно забывает о себе. Оставшись один на один с младенцем, она сталкивается с усталостью, одиночеством и потерей собственной личности.',
   description: [
-    'О чем фильм?',
-    '«Выдохни» — короткометражный фильм о молодой матери, которая в заботе о ребёнке постепенно забывает о себе. Оставшись один на один с младенцем, она сталкивается с усталостью, одиночеством и потерей собственной личности.',
-    'Описание:',
     'Фильм показывает неидеальную сторону материнства — эмоциональное выгорание, постоянную отдачу себя семье и необходимость иногда остановиться, выйти из привычного ритма и просто побыть собой. Маленький момент тишины и свободы помогает героине восстановить силы и снова почувствовать связь с собой и миром.'
   ].join('\n'),
+  backdrop: 'img/vydohni-hero.jpg',
   poster: 'img/vydohni.jpg', video: 'https://youtu.be/ZaKhUAJvSd4?si=iT8E09_NkApAMQKY',
   isNew: true,
   isPick: false,
@@ -46,16 +45,15 @@ const vydohni = {
 const poTuStoronu = {
   title: 'По ту сторону кадра', year: 2026, country: 'Россия', genre: 'Драма, 14+',
   director: 'Карапетова Эмилия', directorId: 'emilia-karapetova', duration: '',
+  summary: '«По ту сторону кадра» — короткометражный игровой фильм о молодой девушке, которая сталкивается с суровой реальностью кинопроизводства. Её идеализированные представления о кино постепенно разрушаются, заставляя переосмыслить собственные мечты, ценности и отношение к творчеству.',
   description: [
-    'О чём фильм?',
-    '«По ту сторону кадра» — короткометражный игровой фильм о молодой девушке, которая сталкивается с суровой реальностью кинопроизводства. Её идеализированные представления о кино постепенно разрушаются, заставляя переосмыслить собственные мечты, ценности и отношение к творчеству.',
-    'Описание фильма',
     '«По ту сторону кадра» — короткометражная игровая трагикомедия о столкновении творческих амбиций с суровой реальностью кинопроизводства.',
     'В центре истории — молодая девушка, которая мечтает создавать настоящее кино, но оказывается в мире, где вдохновение постоянно сталкивается с бытовыми трудностями, непредвиденными обстоятельствами и человеческим фактором. То, что представлялось ей увлекательным творческим процессом, постепенно превращается в череду испытаний, заставляющих усомниться в собственных силах и выбранном пути.',
     'Через комичные, абсурдные и одновременно драматичные ситуации фильм раскрывает изнанку киноиндустрии, показывая, что за каждым красивым кадром стоят не только профессионализм и талант, но и ошибки, конфликты, компромиссы и огромный труд целой команды.',
     'Особое внимание уделяется развитию регионального кинематографа. Действие разворачивается в Калужской области, где создание кино становится настоящим испытанием для молодых авторов, стремящихся реализовать свои идеи вдали от крупных кинопроизводственных центров.',
     '«По ту сторону кадра» — это история не столько о том, как снимают кино, сколько о людях, которые продолжают его создавать, даже когда всё идёт не по плану. Фильм с юмором и искренностью рассказывает о взрослении, разочаровании, дружбе и поиске настоящего смысла творчества, напоминая, что иногда самое важное происходит не перед камерой, а по ту сторону кадра.'
   ].join('\n'),
+  backdrop: 'img/po-tu-storonu-hero.jpg',
   poster: 'img/po-tu-storonu-kadra.jpg', video: '',
   isNew: true,
   isPick: false,
@@ -301,26 +299,58 @@ const pages = {
     const specs = [['Год производства:', f.year], ['Страна:', f.country], ['Жанр:', f.genre],
     ['Режиссер:', f.director], ['Длительность:', f.duration]].filter(([, v]) => v);
 
-    return `
+    const paragraphs = list => list.filter(Boolean).join('\n').split('\n')
+      .map(t => `<p class="film-text">${t}</p>`).join('');
+
+    const meta = [f.year, f.country, f.genre,
+      f.director && `Режиссер: ${f.director}`,
+      f.duration && `Длительность: ${f.duration}`].filter(Boolean).join(' · ');
+
+    const hasPeople = f.actors.length || f.crew.length;
+
+    const castCrew = `
+      ${f.actors.length ? `<h3 class="film-h">Актерский состав</h3>
+        ${peopleRow(f.actors)}<hr>` : ''}
+      ${f.crew.length ? `<h3 class="film-h">Над фильмом работали</h3>
+        ${peopleRow(f.crew)}` : ''}`;
+
+    const top = f.backdrop ? `
+      <section class="film-hero" style="background-image:url('${f.backdrop}')">
+        <div class="film-hero-in">
+          <h1 class="film-title">${f.title}</h1>
+          ${meta ? `<p class="film-meta">${meta}</p>` : ''}
+          ${f.summary ? `<p class="film-lead">${f.summary}</p>` : ''}
+        </div>
+      </section>` : `
       <section class="film-top">
         <div>
           <h1 class="film-title">${f.title}${f.year ? `, ${f.year}` : ''}</h1>
           <h3 class="film-h">О фильме</h3>
           <dl class="film-specs">${specs.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl>
-          ${f.description.split('\n').map(t => `<p class="film-text">${t}</p>`).join('')}
+          ${paragraphs([f.summary, f.description])}
         </div>
         <div class="film-poster">${pic(f.poster, 'постер фильма')}</div>
-      </section>
+      </section>`;
+
+    const details = f.backdrop ? `
+      <section class="tabs">
+        <div class="tabs-bar" role="tablist">
+          <button class="tab on" role="tab" aria-selected="true" data-tab="descr">Описание</button>
+          ${hasPeople ? '<button class="tab" role="tab" aria-selected="false" data-tab="crew">Создатели</button>' : ''}
+        </div>
+        <div class="tab-panel" data-panel="descr">${paragraphs([f.description])}</div>
+        ${hasPeople ? `<div class="tab-panel" data-panel="crew" hidden>${castCrew}</div>` : ''}
+      </section>` : castCrew;
+
+    return `
+      ${top}
 
       ${player(f.video)}
 
-      ${f.actors.length || f.crew.length
+      ${hasPeople
         ? `<div class="more"><button class="btn" data-credits="${f.id}">смотреть титры</button></div>` : ''}
 
-      ${f.actors.length ? `<h3 class="film-h">Актерский состав</h3>
-        ${peopleRow(f.actors)}<hr>` : ''}
-      ${f.crew.length ? `<h3 class="film-h">Над фильмом работали</h3>
-        ${peopleRow(f.crew)}` : ''}`;
+      ${details}`;
   },
 
   afisha: () =>
@@ -541,6 +571,17 @@ document.addEventListener('click', e => {
   if (creditsBox) {
     if (e.target.closest('.credits-close')) closeCredits();
     else creditsBox.classList.toggle('paused');
+  }
+
+  const tab = e.target.closest('.tab');
+  if (tab) {
+    const box = tab.closest('.tabs');
+    $$('.tab', box).forEach(t => {
+      t.classList.toggle('on', t === tab);
+      t.setAttribute('aria-selected', t === tab);
+    });
+    $$('.tab-panel', box).forEach(p => { p.hidden = p.dataset.panel !== tab.dataset.tab; });
+    syncArrows();
   }
 
   const arrow = e.target.closest('.arr');
