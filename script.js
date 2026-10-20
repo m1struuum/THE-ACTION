@@ -13,6 +13,8 @@ const paragraphs = text => text.split('\n').map(t => `<p class="film-text">${t}<
 const state = message => `<p class="state">${message}</p>`;
 const notFound = () => state('Страница не найдена');
 
+var authReady = false;
+
 
 const lorem = 'Здесь будет описание. Здесь будет много букв для описания. Здесь будет много букв для описания. Здесь будет много букв для описания.';
 const make = (n, fn) => Array.from({ length: n }, (_, i) => ({ id: i + 1, ...fn(i) }));
@@ -119,7 +121,7 @@ const stubAuthor = () => ({
   name: 'Имя Фамилия', role: 'должность', bio: lorem, photo: ''
 });
 
-const authors = make(12, i => i === 0 ? alisaAuthor : i === 1 ? emiliaAuthor : stubAuthor());
+const authors = make(12, i => i === 0 ? emiliaAuthor : i === 1 ? alisaAuthor : stubAuthor());
 
 const show = { title: 'Название шоу', description: 'Краткое описание сути шоу' };
 const episodes = make(3, i => ({ title: `серия ${i + 1}`, description: lorem, video: '' }));
@@ -303,8 +305,8 @@ const pages = {
       .map(t => `<p class="film-text">${t}</p>`).join('');
 
     const meta = [f.year, f.country, f.genre,
-      f.director && `Режиссер: ${f.director}`,
-      f.duration && `Длительность: ${f.duration}`].filter(Boolean).join(' · ');
+    f.director && `Режиссер: ${f.director}`,
+    f.duration && `Длительность: ${f.duration}`].filter(Boolean).join(' · ');
 
     const hasPeople = f.actors.length || f.crew.length;
 
@@ -447,6 +449,8 @@ const pages = {
       <div class="grid6">${cards(list, filmCard)}</div>`;
   },
 
+  account: () => authReady ? accountPage() : '',
+
   coop: () => `
     <h1>Сотрудничество</h1>
     <h2 class="sub" style="margin-top:20px">Оставить заявку</h2>
@@ -534,6 +538,13 @@ function route() {
   closeCredits();
   const [hash, param] = location.hash.replace('#/', '').split('/');
   const id = Object.prototype.hasOwnProperty.call(pages, hash) ? hash : 'home';
+
+  // в кабинет пускаем только вошедших
+  if (id === 'account' && authReady && !auth.current()) {
+    location.hash = '#/';
+    openAuth('login');
+    return;
+  }
 
   $('#app').innerHTML = pages[id](param);
   syncArrows();
@@ -630,6 +641,7 @@ function formatPhone(value) {
 document.addEventListener('submit', e => {
   e.preventDefault();
   const form = e.target;
+  if (form.closest('.auth, .acc')) return; // у окна входа и кабинета своя проверка
   let valid = true;
 
   $$('[required]', form).forEach(input => {
@@ -657,3 +669,793 @@ document.addEventListener('keydown', e => {
     box.classList.toggle('paused');
   }
 });
+
+
+/* ================= Авторизация ================= */
+
+// true: аккаунты хранятся только в этом браузере. Так можно проверить внешний вид и логику,
+// но это НЕ настоящая защита: пользователи не видны владельцу сайта и не переносятся между устройствами.
+// Когда появится сервер (например, PocketBase на VPS), замените методы объекта auth ниже и поставьте false.
+const AUTH_DEMO = true;
+
+const AUTH_USERS = 'action_demo_users';
+const AUTH_SESSION = 'action_demo_session';
+
+const readUsers = () => {
+  try { return JSON.parse(localStorage.getItem(AUTH_USERS) || '[]'); } catch { return []; }
+};
+
+const writeStore = (key, value) => {
+  try { localStorage.setItem(key, value); } catch { throw new Error('Браузер не даёт сохранить данные'); }
+};
+
+async function sha256(text) {
+  if (!window.crypto || !crypto.subtle) throw new Error('Вход работает только на https или localhost');
+  const bytes = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+  return [...new Uint8Array(bytes)].map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+const randomSalt = () =>
+  [...crypto.getRandomValues(new Uint8Array(16))].map(b => b.toString(16).padStart(2, '0')).join('');
+
+const publicUser = user => {
+  const { salt, hash, ...safe } = user;
+  return safe;
+};
+
+const auth = {
+  current() {
+    const id = localStorage.getItem(AUTH_SESSION);
+    const user = readUsers().find(u => u.id === id);
+    return user ? publicUser(user) : null;
+  },
+
+  async register(data) {
+    const users = readUsers();
+    if (users.some(u => u.login.toLowerCase() === data.login.toLowerCase())) {
+      throw new Error('Этот логин уже занят');
+    }
+    if (users.some(u => u.email.toLowerCase() === data.email.toLowerCase())) {
+      throw new Error('Эта почта уже зарегистрирована');
+    }
+
+    const salt = randomSalt();
+    const user = {
+      id: salt.slice(0, 12),
+      name: data.name.trim(),
+      age: Number(data.age),
+      phone: data.phone,
+      email: data.email.trim(),
+      login: data.login.trim(),
+      salt,
+      hash: await sha256(salt + data.password)
+    };
+
+    writeStore(AUTH_USERS, JSON.stringify([...users, user]));
+    writeStore(AUTH_SESSION, user.id);
+    return publicUser(user);
+  },
+
+  async login(login, password) {
+    const user = readUsers().find(u => u.login.toLowerCase() === login.trim().toLowerCase());
+    if (!user || user.hash !== await sha256(user.salt + password)) {
+      throw new Error('Неверный логин или пароль');
+    }
+    writeStore(AUTH_SESSION, user.id);
+    return publicUser(user);
+  },
+
+  update(patch) {
+    const users = readUsers();
+    const i = users.findIndex(u => u.id === localStorage.getItem(AUTH_SESSION));
+    if (i < 0) return null;
+    users[i] = { ...users[i], ...patch };
+    writeStore(AUTH_USERS, JSON.stringify(users));
+    return publicUser(users[i]);
+  },
+
+  // Шаг 1 восстановления: выдаёт одноразовый код на почту.
+  // Всегда отвечает одинаково, чтобы нельзя было узнать, есть ли такая почта в базе.
+  async requestReset(email) {
+    const user = readUsers().find(u => u.email.toLowerCase() === email.trim().toLowerCase());
+    if (!user) return null;
+
+    const code = String(crypto.getRandomValues(new Uint32Array(1))[0] % 1000000).padStart(6, '0');
+    const salt = randomSalt();
+    resetState = {
+      email: user.email,
+      salt,
+      hash: await sha256(salt + code),
+      expires: Date.now() + RESET_TTL,
+      tries: 0
+    };
+    return sendResetCode(user.email, code);
+  },
+
+  // Шаг 2: проверяет код и ставит новый пароль.
+  async resetPassword(email, code, password) {
+    const s = resetState;
+    if (!s || s.email.toLowerCase() !== email.toLowerCase()) throw new Error('Сначала запросите код');
+    if (Date.now() > s.expires) { resetState = null; throw new Error('Срок действия кода истёк, запросите новый'); }
+    if (s.tries >= RESET_TRIES) { resetState = null; throw new Error('Слишком много попыток, запросите новый код'); }
+
+    s.tries++;
+    if (s.hash !== await sha256(s.salt + code.trim())) throw new Error('Неверный код');
+
+    const users = readUsers();
+    const i = users.findIndex(u => u.email.toLowerCase() === s.email.toLowerCase());
+    if (i < 0) throw new Error('Аккаунт не найден');
+
+    const salt = randomSalt();
+    users[i] = { ...users[i], salt, hash: await sha256(salt + password) };
+    writeStore(AUTH_USERS, JSON.stringify(users));
+    resetState = null;
+  },
+
+  logout() {
+    localStorage.removeItem(AUTH_SESSION);
+  }
+};
+
+/* ---- восстановление пароля ---- */
+
+const RESET_TTL = 10 * 60 * 1000;
+const RESET_TRIES = 5;
+let resetState = null;
+let authNote = '';
+
+
+async function sendResetCode(email, code) {
+  if (AUTH_DEMO) return code;
+
+  return null;
+}
+
+/* ---- проверка полей ---- */
+
+const rules = {
+  name: v => /^[A-Za-zА-Яа-яЁё'’-]+(\s+[A-Za-zА-Яа-яЁё'’-]+)+$/.test(v.trim())
+    ? '' : 'Укажите фамилию и имя полностью',
+  age: v => Number.isInteger(Number(v)) && Number(v) >= 1 && Number(v) <= 120
+    ? '' : 'От 1 до 120',
+  phone: v => v.replace(/\D/g, '').length === 11 ? '' : 'Введите номер полностью',
+  email: v => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v.trim()) ? '' : 'Проверьте адрес почты',
+  login: v => /^[A-Za-z0-9_.-]{3,20}$/.test(v.trim())
+    ? '' : '3–20 символов: латиница, цифры, _ . -',
+  password: v => v.length >= 8 ? '' : 'Минимум 8 символов'
+};
+
+function validateRegistration(d) {
+  const errors = {};
+  ['name', 'age', 'phone', 'email', 'login', 'password'].forEach(key => {
+    const message = rules[key](d[key] || '');
+    if (message) errors[key] = message;
+  });
+  if (!errors.password && d.password !== d.password2) errors.password2 = 'Пароли не совпадают';
+  return errors;
+}
+
+function validateForgot(d) {
+  const message = rules.email(d.email || '');
+  return message ? { email: message } : {};
+}
+
+function validateReset(d) {
+  const errors = {};
+  if (!/^\d{6}$/.test((d.code || '').trim())) errors.code = 'Код из 6 цифр';
+  const message = rules.password(d.password || '');
+  if (message) errors.password = message;
+  else if (d.password !== d.password2) errors.password2 = 'Пароли не совпадают';
+  return errors;
+}
+
+function validateLogin(d) {
+  const errors = {};
+  if (!(d.login || '').trim()) errors.login = 'Введите логин';
+  if (!d.password) errors.password = 'Введите пароль';
+  return errors;
+}
+
+/* ---- окно ---- */
+
+const userIcon = `
+  <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true">
+    <circle cx="12" cy="8" r="4.2" fill="none" stroke="currentColor" stroke-width="1.8"/>
+    <path d="M3.5 21c0-4.7 3.8-7.5 8.5-7.5s8.5 2.8 8.5 7.5" fill="none" stroke="currentColor"
+      stroke-width="1.8" stroke-linecap="round"/>
+  </svg>`;
+
+const authField = (label, name, attrs = '') => `
+  <label class="auth-f"><span>${label}</span>
+    <input name="${name}" ${attrs}>
+    <small class="auth-err" hidden></small>
+  </label>`;
+
+const authTabs = mode => `
+  <div class="auth-tabs" role="tablist">
+    <button type="button" class="auth-tab${mode === 'login' ? ' on' : ''}" data-mode="login">Вход</button>
+    <button type="button" class="auth-tab${mode === 'register' ? ' on' : ''}" data-mode="register">Регистрация</button>
+  </div>`;
+
+const demoNote = () => AUTH_DEMO
+  ? '<p class="auth-note">Демо-режим: данные сохраняются только в этом браузере.</p>' : '';
+
+const loginView = () => {
+  const note = authNote;
+  authNote = '';
+  return `
+  ${authTabs('login')}
+  ${note ? `<p class="auth-ok">${note}</p>` : ''}
+  <form data-auth="login" novalidate>
+    ${authField('Логин', 'login', 'autocomplete="username"')}
+    ${authField('Пароль', 'password', 'type="password" autocomplete="current-password"')}
+    <button class="btn">войти</button>
+    <p class="auth-fail" hidden></p>
+    <button type="button" class="auth-link" data-mode="forgot">Забыли пароль?</button>
+  </form>
+  ${demoNote()}`;
+};
+
+const forgotView = () => {
+  if (!resetShown) return `
+    <h3 class="auth-hello">Восстановление пароля</h3>
+    <p class="auth-line">Укажите почту, которую вы указывали при регистрации. Мы отправим на неё одноразовый код.</p>
+    <form data-auth="forgot" novalidate>
+      ${authField('Почта', 'email', 'type="email" placeholder="name@example.com" autocomplete="email"')}
+      <button class="btn">получить код</button>
+      <p class="auth-fail" hidden></p>
+    </form>
+    <button type="button" class="auth-link" data-mode="login">Вернуться ко входу</button>`;
+
+  const { email, demoCode } = resetShown;
+  return `
+    <h3 class="auth-hello">Введите код</h3>
+    <p class="auth-line">Если аккаунт с почтой <b>${esc(email)}</b> существует, мы отправили на неё код. Он действует 10 минут.</p>
+    ${AUTH_DEMO && demoCode ? `<p class="auth-demo">Демо-режим: письмо не отправляется. Ваш код: <b>${demoCode}</b></p>` : ''}
+    <form data-auth="reset" novalidate>
+      <input type="hidden" name="email" value="${esc(email)}">
+      ${authField('Код из письма', 'code', 'inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="000000"')}
+      <div class="auth-row">
+        ${authField('Новый пароль', 'password', 'type="password" autocomplete="new-password"')}
+        ${authField('Повторите пароль', 'password2', 'type="password" autocomplete="new-password"')}
+      </div>
+      <button class="btn">сменить пароль</button>
+      <p class="auth-fail" hidden></p>
+    </form>
+    <button type="button" class="auth-link" data-reset="back">Отправить код заново или изменить почту</button>`;
+};
+
+const registerView = () => `
+  ${authTabs('register')}
+  <form data-auth="register" novalidate>
+    ${authField('ФИО', 'name', 'placeholder="Фамилия Имя Отчество" autocomplete="name"')}
+    <div class="auth-row age">
+      ${authField('Возраст', 'age', 'type="number" min="1" max="120" inputmode="numeric"')}
+      ${authField('Номер телефона', 'phone', 'type="tel" placeholder="+7 (***) ***-**-**" autocomplete="tel"')}
+    </div>
+    ${authField('Почта', 'email', 'type="email" placeholder="name@example.com" autocomplete="email"')}
+    ${authField('Логин', 'login', 'autocomplete="username"')}
+    <div class="auth-row">
+      ${authField('Пароль', 'password', 'type="password" autocomplete="new-password"')}
+      ${authField('Повторите пароль', 'password2', 'type="password" autocomplete="new-password"')}
+    </div>
+    <button class="btn">зарегистрироваться</button>
+    <p class="auth-fail" hidden></p>
+  </form>
+  ${demoNote()}`;
+
+const profileView = user => `
+  <h3 class="auth-hello">${user.name}</h3>
+  <p class="auth-line">Логин: <b>${user.login}</b></p>
+  <p class="auth-line">Почта: <b>${user.email}</b></p>
+  <button type="button" class="btn auth-logout">выйти</button>`;
+
+const authBox = document.createElement('div');
+authBox.className = 'auth';
+authBox.hidden = true;
+authBox.innerHTML = `
+  <div class="auth-box" role="dialog" aria-modal="true" aria-label="Вход и регистрация">
+    <button type="button" class="auth-close" aria-label="Закрыть">×</button>
+    <div class="auth-body"></div>
+  </div>`;
+document.body.append(authBox);
+
+const userBtn = document.createElement('button');
+userBtn.type = 'button';
+userBtn.className = 'user-btn';
+userBtn.innerHTML = userIcon;
+$('.top').append(userBtn);
+
+function updateUserButton() {
+  const user = auth.current();
+  userBtn.classList.toggle('in', Boolean(user));
+  userBtn.innerHTML = user && user.avatar ? `<img src="${user.avatar}" alt="">` : userIcon;
+  userBtn.setAttribute('aria-label', user ? `Аккаунт: ${user.name}` : 'Войти или зарегистрироваться');
+  userBtn.title = user ? user.name : 'Войти';
+}
+
+function renderAuth(mode = 'login') {
+  const user = auth.current();
+  $('.auth-body', authBox).innerHTML =
+    user ? profileView(user)
+      : mode === 'register' ? registerView()
+        : mode === 'forgot' ? forgotView() : loginView();
+}
+
+function openAuth(mode) {
+  if (mode !== 'forgot') { resetShown = null; resetState = null; }
+  renderAuth(mode);
+  authBox.hidden = false;
+  document.body.style.overflow = 'hidden';
+  const first = $('input', authBox);
+  if (first) first.focus();
+}
+
+function closeAuth() {
+  authBox.hidden = true;
+  if (!$('.credits')) document.body.style.overflow = '';
+  userBtn.focus();
+}
+
+function showErrors(form, errors) {
+  $$('.auth-f', form).forEach(label => {
+    const input = $('input', label);
+    const message = errors[input.name] || '';
+    const note = $('.auth-err', label);
+    note.textContent = message;
+    note.hidden = !message;
+    input.classList.toggle('err', Boolean(message));
+  });
+}
+
+userBtn.addEventListener('click', () => {
+  if (auth.current()) {
+    if (!authBox.hidden) closeAuth();
+    location.hash = '#/account';
+  } else {
+    authBox.hidden ? openAuth('login') : closeAuth();
+  }
+});
+
+authBox.addEventListener('click', e => {
+  if (e.target === authBox || e.target.closest('.auth-close')) return closeAuth();
+
+  const tab = e.target.closest('.auth-tab, .auth-link[data-mode]');
+  if (tab) openAuth(tab.dataset.mode);
+
+  if (e.target.closest('[data-reset="back"]')) {
+    resetShown = null;
+    resetState = null;
+    renderAuth('forgot');
+    const first = $('input', authBox);
+    if (first) first.focus();
+  }
+
+  if (e.target.closest('.auth-logout')) {
+    auth.logout();
+    updateUserButton();
+    openAuth('login');
+  }
+});
+
+authBox.addEventListener('submit', async e => {
+  e.preventDefault();
+  e.stopPropagation(); // чтобы форма заявок на странице её не обрабатывала
+  const form = e.target;
+  const data = Object.fromEntries(new FormData(form));
+  const kind = form.dataset.auth;
+  const register = kind === 'register';
+
+  const errors = register ? validateRegistration(data)
+    : kind === 'forgot' ? validateForgot(data)
+      : kind === 'reset' ? validateReset(data) : validateLogin(data);
+  showErrors(form, errors);
+  const firstBad = Object.keys(errors)[0];
+  if (firstBad) return $(`[name="${firstBad}"]`, form).focus();
+
+  const button = $('.btn', form);
+  const fail = $('.auth-fail', form);
+  const label = button.textContent;
+  fail.hidden = true;
+  button.disabled = true;
+  button.textContent = 'Подождите…';
+
+  try {
+    if (kind === 'forgot') {
+      const demoCode = await auth.requestReset(data.email);
+      resetShown = { email: data.email.trim(), demoCode };
+      renderAuth('forgot');
+      const first = $('input[name="code"]', authBox);
+      if (first) first.focus();
+      return;
+    }
+    if (kind === 'reset') {
+      await auth.resetPassword(data.email, data.code, data.password);
+      resetShown = null;
+      authNote = 'Пароль изменён. Войдите с новым паролем.';
+      renderAuth('login');
+      return;
+    }
+
+    if (register) await auth.register(data);
+    else await auth.login(data.login, data.password);
+    updateUserButton();
+    closeAuth();
+    location.hash = '#/account';   // после входа открываем личный кабинет
+  } catch (error) {
+    fail.textContent = error.message;
+    fail.hidden = false;
+    button.disabled = false;
+    button.textContent = label;
+  }
+});
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && !authBox.hidden) closeAuth();
+});
+
+updateUserButton();
+
+
+const DEVICE_LIMIT = 5;
+
+// Демо-тарифы: названия и цены замените на свои
+const PLANS = [
+  { id: 'base', title: 'Базовая', price: '199 ₽ / мес', text: 'Каталог авторских фильмов' },
+  { id: 'plus', title: 'Плюс', price: '399 ₽ / мес', text: 'Каталог, премьеры и шоу' }
+];
+
+const esc = s => String(s).replace(/[&<>"']/g,
+  c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const initials = name => name.trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase();
+const fmtDate = value => new Date(value).toLocaleDateString('ru-RU');
+
+const luhn = num => {
+  let sum = 0, alt = false;
+  for (let i = num.length - 1; i >= 0; i--) {
+    let n = Number(num[i]);
+    if (alt) { n *= 2; if (n > 9) n -= 9; }
+    sum += n;
+    alt = !alt;
+  }
+  return sum % 10 === 0;
+};
+
+let accOpen = '';   // какая панель раскрыта: '', 'pay' или 'dev'
+let accMsg = '';    // короткое сообщение сверху
+let accCardPending = null;   // карта ждёт подтверждения кодом из банка: { last4, salt, hash, expires, tries, demoCode }
+
+const CARD_CODE_TTL = 5 * 60 * 1000;
+const CARD_CODE_TRIES = 3;
+
+// ВАЖНО: настоящий код подтверждения присылает банк (3-D Secure) через платёжного провайдера,
+// это невозможно сделать на сайте без сервера. В демо-режиме код показывается на экране.
+// Данные карты (номер, срок, CVV) в браузере не сохраняются: остаются только последние 4 цифры.
+// Для настоящих платежей подключите платёжного провайдера (ЮKassa, CloudPayments и т. п.),
+// чтобы карту вводили в его защищённой форме.
+async function sendBankCode(last4, code) {
+  if (AUTH_DEMO) return code;
+  return null;
+}
+
+const cardFormHtml = card => `
+  <form data-acc-card novalidate>
+    ${authField(card ? 'Новая карта' : 'Номер карты', 'card', 'inputmode="numeric" placeholder="0000 0000 0000 0000" autocomplete="cc-number"')}
+    <div class="auth-row">
+      ${authField('Срок действия', 'expiry', 'inputmode="numeric" placeholder="ММ/ГГ" maxlength="5" autocomplete="cc-exp"')}
+      ${authField('CVV/CVC', 'cvv', 'type="password" inputmode="numeric" placeholder="***" maxlength="3" autocomplete="cc-csc"')}
+    </div>
+    ${authField('Имя на карте', 'holder', 'placeholder="IVAN IVANOV" autocomplete="cc-name"')}
+    <button class="btn">${card ? 'заменить' : 'привязать'}</button>
+  </form>`;
+
+const cardConfirmHtml = () => `
+  <form data-acc-confirm novalidate>
+    <p class="acc-sub">Банк отправил код подтверждения на телефон, привязанный к карте •••• ${accCardPending.last4}. Код действует 5 минут.</p>
+    ${AUTH_DEMO && accCardPending.demoCode ? `<p class="auth-demo">Демо-режим: SMS не отправляется. Ваш код: <b>${accCardPending.demoCode}</b></p>` : ''}
+    ${authField('Код из банка', 'code', 'inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="000000"')}
+    <button class="btn">подтвердить</button>
+    <button type="button" class="pill acc-pill" data-acc="card-cancel">отмена</button>
+  </form>`;
+
+function validateCard(d) {
+  const errors = {};
+  const num = (d.card || '').replace(/\D/g, '');
+  if (num.length !== 16 || !luhn(num)) errors.card = 'Проверьте номер карты';
+
+  const m = /^(\d{2})\/(\d{2})$/.exec(d.expiry || '');
+  if (!m || Number(m[1]) < 1 || Number(m[1]) > 12) {
+    errors.expiry = 'Формат ММ/ГГ';
+  } else {
+    const year = 2000 + Number(m[2]);
+    const now = new Date();
+    const expired = year < now.getFullYear() || (year === now.getFullYear() && Number(m[1]) < now.getMonth() + 1);
+    if (expired) errors.expiry = 'Срок действия истёк';
+    else if (year > now.getFullYear() + 20) errors.expiry = 'Проверьте год';
+  }
+
+  if (!/^\d{3}$/.test(d.cvv || '')) errors.cvv = '3 цифры';
+  if (!/^[A-Z][A-Z.'-]*( [A-Z.'-]+)+$/.test((d.holder || '').trim())) errors.holder = 'Латиницей, как на карте';
+  return errors;
+}
+
+function deviceId() {
+  let id = localStorage.getItem('action_demo_device');
+  if (!id) {
+    id = randomSalt().slice(0, 12);
+    try { localStorage.setItem('action_demo_device', id); } catch { /* без хранилища */ }
+  }
+  return id;
+}
+
+function deviceName() {
+  const ua = navigator.userAgent;
+  const browser = /Edg\//.test(ua) ? 'Edge' : /OPR\//.test(ua) ? 'Opera' : /YaBrowser/.test(ua) ? 'Яндекс Браузер'
+    : /Firefox\//.test(ua) ? 'Firefox' : /Chrome\//.test(ua) ? 'Chrome' : /Safari\//.test(ua) ? 'Safari' : 'Браузер';
+  const os = /iPhone|iPad/.test(ua) ? 'iOS' : /Android/.test(ua) ? 'Android' : /Windows/.test(ua) ? 'Windows'
+    : /Mac OS/.test(ua) ? 'macOS' : /Linux/.test(ua) ? 'Linux' : '';
+  return os ? `${browser}, ${os}` : browser;
+}
+
+// текущее устройство попадает в список, пока лимит не исчерпан
+function ensureDevice(user) {
+  const id = deviceId();
+  const list = user.devices || [];
+  if (list.some(d => d.id === id) || list.length >= DEVICE_LIMIT) return user;
+  return auth.update({ devices: [...list, { id, name: deviceName(), added: new Date().toISOString() }] }) || user;
+}
+
+function accountPage() {
+  let user = auth.current();
+  if (!user) return notFound();
+  user = ensureDevice(user);
+
+  const msg = accMsg;
+  accMsg = '';
+
+  const me = deviceId();
+  const devices = user.devices || [];
+  const registered = devices.some(d => d.id === me);
+  const plan = user.plan && PLANS.find(p => p.id === user.plan.id);
+  const card = user.card;
+
+  const avatar = user.avatar
+    ? `<img src="${user.avatar}" alt="">`
+    : `<span>${esc(initials(user.name))}</span>`;
+
+  const subs = plan ? `
+    <section class="acc-card">
+      <div class="acc-plan"><span class="acc-badge">${esc(plan.title)}</span><span class="acc-state">Активна</span></div>
+      <p class="acc-sub">Следующее списание ${fmtDate(user.plan.next)} · ${esc(plan.price)}</p>
+      <button type="button" class="pill acc-pill" data-acc="plan-off">отменить подписку</button>
+    </section>` : `
+    <section class="acc-card"><p class="acc-sub">Активных подписок пока нет</p></section>
+    ${PLANS.map(p => `
+      <section class="acc-card acc-offer">
+        <div>
+          <h4>${esc(p.title)}</h4>
+          <p class="acc-sub">${esc(p.text)}</p>
+          <p class="acc-sub">${esc(p.price)}</p>
+        </div>
+        <button type="button" class="btn" data-acc="plan-on" data-plan="${p.id}">оформить</button>
+      </section>`).join('')}`;
+
+  return `
+    <div class="acc">
+      <div class="acc-col">
+        <section class="acc-card acc-profile">
+          <label class="acc-avatar" title="Сменить фото">
+            ${avatar}<i>сменить</i>
+            <input type="file" accept="image/*" data-avatar hidden>
+          </label>
+          <div>
+            <h1 class="acc-name">${esc(user.name)}</h1>
+            <p class="acc-sub">${esc(user.phone)}</p>
+            <p class="acc-sub">${esc(user.email)}</p>
+            ${user.avatar ? '<button type="button" class="pill acc-pill" data-acc="avatar-remove">удалить фото</button>' : ''}
+          </div>
+        </section>
+
+        <h2 class="acc-h">Мои подписки</h2>
+        ${subs}
+      </div>
+
+      <div class="acc-col">
+        ${msg ? `<p class="acc-msg">${esc(msg)}</p>` : ''}
+
+        <div class="acc-tiles">
+          <button type="button" class="acc-tile${accOpen === 'pay' ? ' on' : ''}" data-acc="toggle" data-panel="pay">
+            <span>Способ оплаты</span>
+            <b>${card ? '*' + card.last4 : 'не привязан'}</b>
+          </button>
+          <button type="button" class="acc-tile${accOpen === 'dev' ? ' on' : ''}" data-acc="toggle" data-panel="dev">
+            <span>Устройства</span>
+            <b>${devices.length}/${DEVICE_LIMIT}</b>
+          </button>
+        </div>
+
+        <section class="acc-card" ${accOpen === 'pay' ? '' : 'hidden'}>
+          <h3 class="acc-ph">Способ оплаты</h3>
+          ${card ? `
+            <div class="acc-row">
+              <span>Карта •••• ${card.last4}</span>
+              <button type="button" class="pill acc-pill" data-acc="card-del">отвязать</button>
+            </div>` : ''}
+          ${accCardPending ? cardConfirmHtml() : cardFormHtml(card)}
+          <p class="acc-note">Номер, срок и CVV не сохраняются: остаются только последние 4 цифры.</p>
+        </section>
+
+        <section class="acc-card" ${accOpen === 'dev' ? '' : 'hidden'}>
+          <h3 class="acc-ph">Устройства (до ${DEVICE_LIMIT})</h3>
+          ${devices.map(d => `
+            <div class="acc-row">
+              <div>
+                <b>${esc(d.name)}</b>
+                <small>${d.id === me ? 'Это устройство · ' : ''}добавлено ${fmtDate(d.added)}</small>
+              </div>
+              ${d.id === me ? '' : `<button type="button" class="pill acc-pill" data-acc="dev-del" data-id="${d.id}">удалить</button>`}
+            </div>`).join('')}
+          ${registered ? '' : `<p class="acc-note">Лимит устройств исчерпан: удалите одно, чтобы добавить это.</p>`}
+        </section>
+
+        <button type="button" class="btn acc-logout" data-acc="logout">выйти из аккаунта</button>
+      </div>
+    </div>`;
+}
+
+function renderAccount() {
+  if (/^#\/account/.test(location.hash)) $('#app').innerHTML = accountPage();
+}
+
+const readAvatar = file => new Promise((resolve, reject) => {
+  const url = URL.createObjectURL(file);
+  const img = new Image();
+  img.onload = () => {
+    const size = 256;
+    const side = Math.min(img.width, img.height);
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = size;
+    canvas.getContext('2d').drawImage(img, (img.width - side) / 2, (img.height - side) / 2, side, side, 0, 0, size, size);
+    URL.revokeObjectURL(url);
+    resolve(canvas.toDataURL('image/jpeg', 0.85));
+  };
+  img.onerror = () => {
+    URL.revokeObjectURL(url);
+    reject(new Error('Не удалось прочитать изображение'));
+  };
+  img.src = url;
+});
+
+document.addEventListener('change', async e => {
+  if (!e.target.matches('[data-avatar]')) return;
+  const file = e.target.files[0];
+  if (!file) return;
+  try {
+    if (!file.type.startsWith('image/')) throw new Error('Выберите файл-изображение');
+    auth.update({ avatar: await readAvatar(file) });
+    updateUserButton();
+  } catch (error) {
+    accMsg = error.message;
+  }
+  renderAccount();
+});
+
+document.addEventListener('input', e => {
+  const f = e.target;
+  if (!f.closest || !f.closest('[data-acc-card], [data-acc-confirm]')) return;
+
+  if (f.name === 'card') {
+    f.value = f.value.replace(/\D/g, '').slice(0, 16).replace(/(.{4})(?=.)/g, '$1 ');
+  } else if (f.name === 'expiry') {
+    const d = f.value.replace(/\D/g, '').slice(0, 4);
+    f.value = d.length > 2 ? d.slice(0, 2) + '/' + d.slice(2) : d;
+  } else if (f.name === 'cvv' || f.name === 'code') {
+    f.value = f.value.replace(/\D/g, '').slice(0, f.name === 'cvv' ? 3 : 6);
+  } else if (f.name === 'holder') {
+    f.value = f.value.toUpperCase().replace(/[^A-Z .'-]/g, '');
+  }
+});
+
+document.addEventListener('submit', async e => {
+  const cardForm = e.target.closest('[data-acc-card]');
+  const confirmForm = e.target.closest('[data-acc-confirm]');
+  if (!cardForm && !confirmForm) return;
+
+  // шаг 1: данные карты, банк «присылает» код
+  if (cardForm) {
+    const data = Object.fromEntries(new FormData(cardForm));
+    const errors = validateCard(data);
+    showErrors(cardForm, errors);
+    const firstBad = Object.keys(errors)[0];
+    if (firstBad) return $(`[name="${firstBad}"]`, cardForm).focus();
+
+    const num = data.card.replace(/\D/g, '');
+    const code = String(crypto.getRandomValues(new Uint32Array(1))[0] % 1000000).padStart(6, '0');
+    const salt = randomSalt();
+    const demoCode = await sendBankCode(num.slice(-4), code);
+    accCardPending = {
+      last4: num.slice(-4), salt, hash: await sha256(salt + code),
+      expires: Date.now() + CARD_CODE_TTL, tries: 0, demoCode
+    };
+    accOpen = 'pay';
+    renderAccount();
+    const first = $('[data-acc-confirm] input');
+    if (first) first.focus();
+    return;
+  }
+
+  // шаг 2: код из банка
+  const data = Object.fromEntries(new FormData(confirmForm));
+  const p = accCardPending;
+  let error = '';
+  if (!p) error = 'Начните привязку заново';
+  else if (Date.now() > p.expires) { accCardPending = null; accMsg = 'Срок действия кода истёк, повторите привязку'; return renderAccount(); }
+  else if (!/^\d{6}$/.test(data.code || '')) error = 'Код из 6 цифр';
+  else {
+    p.tries++;
+    if (p.hash !== await sha256(p.salt + data.code)) {
+      error = 'Неверный код';
+      if (p.tries >= CARD_CODE_TRIES) {
+        accCardPending = null;
+        accMsg = 'Слишком много попыток, повторите привязку';
+        return renderAccount();
+      }
+    }
+  }
+
+  showErrors(confirmForm, error ? { code: error } : {});
+  if (error) return;
+
+  auth.update({ card: { last4: p.last4 } });
+  accCardPending = null;
+  accMsg = 'Карта привязана';
+  renderAccount();
+});
+
+document.addEventListener('click', e => {
+  const btn = e.target.closest('.acc [data-acc]');
+  if (!btn) return;
+  const user = auth.current();
+  if (!user) return;
+
+  const action = btn.dataset.acc;
+
+  if (action === 'toggle') {
+    accOpen = accOpen === btn.dataset.panel ? '' : btn.dataset.panel;
+  } else if (action === 'logout') {
+    auth.logout();
+    accOpen = '';
+    accCardPending = null;
+    updateUserButton();
+    location.hash = '#/';
+    return;
+  } else if (action === 'avatar-remove') {
+    auth.update({ avatar: '' });
+    updateUserButton();
+  } else if (action === 'plan-on') {
+    if (!user.card) {
+      accMsg = 'Сначала привяжите способ оплаты';
+      accOpen = 'pay';
+    } else {
+      const next = new Date();
+      next.setMonth(next.getMonth() + 1);
+      auth.update({ plan: { id: btn.dataset.plan, next: next.toISOString() } });
+      accMsg = 'Подписка оформлена';
+    }
+  } else if (action === 'plan-off') {
+    auth.update({ plan: null });
+    accMsg = 'Подписка отменена';
+  } else if (action === 'card-cancel') {
+    accCardPending = null;
+  } else if (action === 'card-del') {
+    auth.update({ card: null });
+    accMsg = 'Карта отвязана';
+  } else if (action === 'dev-del') {
+    auth.update({ devices: (user.devices || []).filter(d => d.id !== btn.dataset.id) });
+  }
+
+  renderAccount();
+});
+
+authReady = true;
+if (/^#\/account/.test(location.hash)) route();
