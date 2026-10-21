@@ -1829,3 +1829,258 @@ a.person:hover h4 {
     padding: 10px 12px;
   }
 }
+
+
+/* 10-балльная шкала */
+.star {
+  padding: 0 1px;
+  font-size: 24px;
+}
+
+@media (max-width: 520px) {
+  .star {
+    padding: 0;
+    font-size: 21px;
+  }
+}
+
+/* Галочка рассылки */
+.auth-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 4px 0 14px;
+  color: #ccc;
+  font-size: 12px;
+  line-height: 1.4;
+  cursor: pointer;
+}
+
+.auth-check input {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin: 1px 0 0;
+  accent-color: var(--pink);
+  cursor: pointer;
+}
+
+.acc .auth-check {
+  margin: 0;
+  color: #ddd;
+  font-size: 14px;
+}
+
+/* Список в тарифе */
+.acc-list {
+  margin: 6px 0 8px 18px;
+  color: #ddd;
+  font-size: 13px;
+}
+
+/* Подвал */
+.foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 32px;
+  max-width: 1500px;
+  margin: 0 auto;
+  padding: 24px 32px 32px;
+  border-top: 1px solid #333;
+}
+
+.foot-copy {
+  color: var(--mute);
+  font-size: 13px;
+}
+
+.foot-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+}
+
+.foot-nav a {
+  color: var(--mute);
+  font-size: 13px;
+  transition: 0.2s;
+}
+
+.foot-nav a:hover {
+  color: #ddd;
+}
+
+@media (max-width: 900px) {
+  .foot {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 20px 16px 28px;
+  }
+
+  .foot-nav {
+    flex-direction: column;
+    gap: 10px;
+  }
+}
+
+/* Служебные страницы */
+.doc-lead {
+  max-width: 700px;
+  margin: 14px 0 28px;
+  color: var(--txt);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.doc {
+  max-width: 800px;
+  margin-top: 20px;
+}
+
+.doc .film-text {
+  font-size: 14px;
+}
+
+.teach {
+  justify-content: start;
+  gap: 20px;
+}
+
+.teach .acc-card .btn {
+  margin-top: 14px;
+}
+
+.teach-open {
+  color: #8fd19e;
+}
+
+
+/* Блок оценки: аккуратная раскладка */
+.film-act {
+  display: grid;
+  justify-content: stretch;
+  gap: 20px;
+  padding: 22px 26px;
+}
+
+.film-rate {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 14px 32px;
+}
+
+.film-score {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 6px;
+  min-width: 100px;
+}
+
+.film-score b {
+  font-size: 38px;
+  line-height: 1.1;
+}
+
+.film-score em {
+  color: #7a7a7a;
+  font-size: 15px;
+  font-style: normal;
+}
+
+.film-score span {
+  flex-basis: 100%;
+  margin-top: 2px;
+}
+
+.film-vote {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.stars {
+  width: 100%;
+}
+
+.star {
+  flex: 1;
+  padding: 0;
+  font-size: 28px;
+  text-align: center;
+}
+
+.film-act .film-mine {
+  flex-basis: auto;
+  text-align: center;
+}
+
+.film-btns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  width: 100%;
+  padding-top: 20px;
+  border-top: 1px solid #3a3a3a;
+}
+
+.film-btn {
+  justify-content: center;
+}
+
+@media (max-width: 520px) {
+  .film-act {
+    padding: 18px 16px;
+  }
+
+  .film-rate {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .film-score {
+    justify-content: center;
+    text-align: center;
+  }
+
+  .film-score span {
+    text-align: center;
+  }
+
+  .star {
+    font-size: 22px;
+  }
+}
+
+/* Подвал по центру */
+.foot {
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 14px;
+  padding: 32px 16px 36px;
+  text-align: center;
+}
+
+.foot-nav {
+  order: -1;
+  justify-content: center;
+  gap: 10px 28px;
+}
+
+@media (max-width: 900px) {
+  .foot {
+    align-items: center;
+    padding: 28px 16px 32px;
+  }
+
+  .foot-nav {
+    flex-direction: row;
+    justify-content: center;
+    gap: 10px 20px;
+  }
+}

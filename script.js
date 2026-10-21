@@ -454,6 +454,30 @@ const pages = {
 
   account: () => authReady ? accountPage() : '',
 
+  teachers: () => {
+    const open = hasTeacherAccess();
+    const lock = `
+      <p class="acc-sub">Откроется после оформления подписки «Преподавателям».</p>
+      <a class="btn" href="#/account">оформить подписку</a>`;
+    const block = (title, text) => `
+      <section class="acc-card">
+        <h3 class="acc-ph">${title}</h3>
+        <p class="acc-sub">${text}</p>
+        ${open ? '<p class="acc-sub teach-open">Доступ открыт. Материалы появятся здесь.</p>' : lock}
+      </section>`;
+
+    return `
+      <h1>Для преподавателей</h1>
+      <p class="doc-lead">Фильмы кинотеатра можно использовать на занятиях: к ним есть образовательные материалы и переводы.</p>
+      <div class="grid2 teach">
+        ${block('Образовательные материалы', 'Материалы для работы с фильмами на занятиях.')}
+        ${block('Переводы', 'Переводы фильмов для занятий.')}
+      </div>`;
+  },
+
+  terms: () => docPage('Пользовательское соглашение'),
+  privacy: () => docPage('Политика конфиденциальности'),
+
   coop: () => `
     <h1>Сотрудничество</h1>
     <h2 class="sub" style="margin-top:20px">Оставить заявку</h2>
@@ -470,6 +494,9 @@ const pages = {
 
 const bookmarkIcon = `<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M6 3h12v18l-6-4.5L6 21z" fill="currentColor" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>`;
 const shareIcon = `<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="2.6"/><circle cx="6" cy="12" r="2.6"/><circle cx="18" cy="19" r="2.6"/><path d="M8.3 10.8l7.4-4.4M8.3 13.2l7.4 4.4"/></svg>`;
+
+const RATING_MAX = 10;                        // оценка от 1 до 10
+const RATINGS_KEY = 'action_demo_ratings10';  // отдельный ключ, чтобы не смешивать со старой 5-балльной шкалой
 
 function lsRead(key) {
   try { return JSON.parse(localStorage.getItem(key) || '{}'); } catch { return {}; }
@@ -496,23 +523,24 @@ function toggleMark(uid, filmId) {
 }
 
 function filmRating(filmId) {
-  const votes = Object.values(lsRead('action_demo_ratings')[filmId] || {});
+  const votes = Object.values(lsRead(RATINGS_KEY)[filmId] || {});
   const count = votes.length;
   return { count, avg: count ? votes.reduce((a, b) => a + b, 0) / count : 0 };
 }
 
 function myRating(uid, filmId) {
-  return uid ? Number((lsRead('action_demo_ratings')[filmId] || {})[uid]) || 0 : 0;
+  return uid ? Number((lsRead(RATINGS_KEY)[filmId] || {})[uid]) || 0 : 0;
 }
 
 // повторный клик по той же оценке снимает её
 function setRating(uid, filmId, value) {
-  const all = lsRead('action_demo_ratings');
+  if (!Number.isInteger(value) || value < 1 || value > RATING_MAX) return;
+  const all = lsRead(RATINGS_KEY);
   const votes = all[filmId] || {};
   if (votes[uid] === value) delete votes[uid];
   else votes[uid] = value;
   all[filmId] = votes;
-  lsWrite('action_demo_ratings', all);
+  lsWrite(RATINGS_KEY, all);
 }
 
 const fmtAvg = n => n.toFixed(1).replace('.', ',');
@@ -535,19 +563,21 @@ function filmActions(f) {
   const { count, avg } = filmRating(f.id);
 
   const score = count
-    ? `<b>${fmtAvg(avg)}</b><span>${count} ${plural(count, ['оценка', 'оценки', 'оценок'])}</span>`
-    : '<span>Пока нет оценок</span>';
+    ? `<b>${fmtAvg(avg)}</b><em>/ ${RATING_MAX}</em><span>${count} ${plural(count, ['оценка', 'оценки', 'оценок'])}</span>`
+    : '<b>—</b><span>Пока нет оценок</span>';
 
   return `
     <div class="film-act" data-film="${f.id}">
       <div class="film-rate">
         <div class="film-score">${score}</div>
+        <div class="film-vote">
         <div class="stars" role="group" aria-label="Ваша оценка">
-          ${[5, 4, 3, 2, 1].map(v => `
+          ${Array.from({ length: RATING_MAX }, (_, i) => RATING_MAX - i).map(v => `
             <button type="button" class="star${v <= mine ? ' on' : ''}" data-film-act="rate" data-v="${v}"
-              aria-label="Оценка ${v} из 5" title="${v}">★</button>`).join('')}
+              aria-label="Оценка ${v} из ${RATING_MAX}" title="${v}">★</button>`).join('')}
         </div>
-        <small class="film-mine">${mine ? `Ваша оценка: ${mine}` : 'Оцените фильм'}</small>
+        <small class="film-mine">${mine ? `Ваша оценка: ${mine} из ${RATING_MAX}` : 'Оцените фильм по 10-балльной шкале'}</small>
+        </div>
       </div>
       <div class="film-btns">
         <button type="button" class="film-btn${marked ? ' on' : ''}" data-film-act="mark" aria-pressed="${marked}">
@@ -636,6 +666,58 @@ document.addEventListener('click', e => {
   refreshFilmActs();
 });
 
+
+/* ================= Подвал и служебные страницы ================= */
+
+let pendingScroll = '';   // раздел главной, к которому нужно прокрутить после перехода
+
+function goSection(id) {
+  if (document.body.className === 'home') {
+    const el = $('#' + id);
+    if (el) el.scrollIntoView({ behavior: 'smooth' });
+  } else {
+    pendingScroll = id;
+    location.hash = '#/';
+  }
+}
+
+const siteFooter = document.createElement('footer');
+siteFooter.className = 'foot';
+siteFooter.innerHTML = `
+  <p class="foot-copy">© 2026 THE ACTION. Все права защищены.</p>
+  <nav class="foot-nav" aria-label="Информация">
+    <a href="#/" data-goto="about">О нас</a>
+    <a href="#/" data-goto="contacts">Контакты</a>
+    <a href="#/teachers">Для преподавателей</a>
+    <a href="#/terms">Пользовательское соглашение</a>
+    <a href="#/privacy">Политика конфиденциальности</a>
+  </nav>`;
+($('main') || $('#app')).after(siteFooter);
+
+document.addEventListener('click', e => {
+  const link = e.target.closest('[data-goto]');
+  if (!link) return;
+  e.preventDefault();
+  goSection(link.dataset.goto);
+});
+
+// доступ к материалам для преподавателей: есть активная подписка «Преподавателям»
+function hasTeacherAccess() {
+  try {
+    const users = JSON.parse(localStorage.getItem('action_demo_users') || '[]');
+    const me = users.find(u => u.id === sessionUserId());
+    return Boolean(me && me.plan && me.plan.id === 'teach');
+  } catch { return false; }
+}
+
+function docPage(title) {
+  return `
+    <h1>${title}</h1>
+    <div class="doc">
+      <p class="film-text">${lorem}</p>
+      <p class="film-text">${lorem}</p>
+    </div>`;
+}
 
 const menu = [
   { id: 'home', title: 'Главная' },
@@ -735,6 +817,12 @@ function route() {
   );
 
   window.scrollTo({ top: 0, behavior: 'instant' });
+
+  if (pendingScroll) {
+    const el = $('#' + pendingScroll);
+    pendingScroll = '';
+    if (el) el.scrollIntoView();
+  }
 }
 
 addEventListener('hashchange', route);
@@ -906,6 +994,8 @@ const auth = {
       phone: data.phone,
       email: data.email.trim(),
       login: data.login.trim(),
+      promo: Boolean(data.promo),                       // согласие на рассылку
+      promoAt: data.promo ? new Date().toISOString() : '',
       salt,
       hash: await sha256(salt + data.password)
     };
@@ -1123,6 +1213,10 @@ const registerView = () => `
       ${authField('Пароль', 'password', 'type="password" autocomplete="new-password"')}
       ${authField('Повторите пароль', 'password2', 'type="password" autocomplete="new-password"')}
     </div>
+    <label class="auth-check">
+      <input type="checkbox" name="promo" value="1">
+      <span>Согласен получать интересные предложения и рассылку от THE ACTION</span>
+    </label>
     <button class="btn">зарегистрироваться</button>
     <p class="auth-fail" hidden></p>
   </form>
@@ -1291,8 +1385,15 @@ const DEVICE_LIMIT = 5;
 // Демо-тарифы: названия и цены замените на свои
 const PLANS = [
   { id: 'base', title: 'Базовая', price: '199 ₽ / мес', text: 'Каталог авторских фильмов' },
-  { id: 'plus', title: 'Плюс', price: '399 ₽ / мес', text: 'Каталог, премьеры и шоу' }
+  {
+    id: 'teach', title: 'Преподавателям', price: '399 ₽ / мес',
+    text: 'Для занятий с фильмами. После оформления открываются:',
+    items: ['Образовательные материалы', 'Переводы']
+  }
 ];
+
+const planItems = p => p.items
+  ? `<ul class="acc-list">${p.items.map(i => `<li>${esc(i)}</li>`).join('')}</ul>` : '';
 
 const esc = s => String(s).replace(/[&<>"']/g,
   c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -1416,6 +1517,7 @@ function accountPage() {
   const subs = plan ? `
     <section class="acc-card">
       <div class="acc-plan"><span class="acc-badge">${esc(plan.title)}</span><span class="acc-state">Активна</span></div>
+      ${planItems(plan)}
       <p class="acc-sub">Следующее списание ${fmtDate(user.plan.next)} · ${esc(plan.price)}</p>
       <button type="button" class="pill acc-pill" data-acc="plan-off">отменить подписку</button>
     </section>` : `
@@ -1425,6 +1527,7 @@ function accountPage() {
         <div>
           <h4>${esc(p.title)}</h4>
           <p class="acc-sub">${esc(p.text)}</p>
+          ${planItems(p)}
           <p class="acc-sub">${esc(p.price)}</p>
         </div>
         <button type="button" class="btn" data-acc="plan-on" data-plan="${p.id}">оформить</button>
@@ -1491,6 +1594,13 @@ function accountPage() {
               ${d.id === me ? '' : `<button type="button" class="pill acc-pill" data-acc="dev-del" data-id="${d.id}">удалить</button>`}
             </div>`).join('')}
           ${registered ? '' : `<p class="acc-note">Лимит устройств исчерпан: удалите одно, чтобы добавить это.</p>`}
+        </section>
+
+        <section class="acc-card">
+          <label class="auth-check">
+            <input type="checkbox" data-acc="promo" ${user.promo ? 'checked' : ''}>
+            <span>Получать интересные предложения и рассылку от THE ACTION</span>
+          </label>
         </section>
 
         <button type="button" class="btn acc-logout" data-acc="logout">выйти из аккаунта</button>
@@ -1640,6 +1750,9 @@ document.addEventListener('click', e => {
   } else if (action === 'plan-off') {
     auth.update({ plan: null });
     accMsg = 'Подписка отменена';
+  } else if (action === 'promo') {
+    auth.update({ promo: btn.checked, promoAt: btn.checked ? new Date().toISOString() : '' });
+    accMsg = btn.checked ? 'Рассылка включена' : 'Рассылка отключена';
   } else if (action === 'card-cancel') {
     accCardPending = null;
   } else if (action === 'card-del') {
