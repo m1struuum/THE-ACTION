@@ -1659,3 +1659,173 @@ a.person:hover h4 {
     align-items: flex-start;
   }
 }
+
+
+/* Оценка, закладки, «поделиться» */
+.fl-rate {
+  display: block;
+  margin-top: 2px;
+  color: var(--pink);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.film-act {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px 28px;
+  max-width: 860px;
+  margin: 28px auto 0;
+  padding: 18px 24px;
+  border-radius: 16px;
+  background: #2a2a2a;
+}
+
+.film-act + .player {
+  margin-top: 28px;
+}
+
+.film-rate {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 18px;
+}
+
+.film-score {
+  display: flex;
+  flex-direction: column;
+  min-width: 82px;
+}
+
+.film-score b {
+  color: #fff;
+  font-size: 28px;
+  font-weight: 600;
+  line-height: 1.1;
+}
+
+.film-score span {
+  color: #9a9a9a;
+  font-size: 12px;
+}
+
+.stars {
+  display: flex;
+  flex-direction: row-reverse;
+}
+
+.star {
+  padding: 0 2px;
+  border: 0;
+  background: none;
+  color: #555;
+  font-size: 30px;
+  line-height: 1;
+  cursor: pointer;
+  transition: color 0.15s, transform 0.15s;
+}
+
+.star.on {
+  color: var(--pink);
+}
+
+.stars:hover .star {
+  color: #555;
+}
+
+.stars .star:hover,
+.stars .star:hover ~ .star {
+  color: var(--pink);
+}
+
+.star:active {
+  transform: scale(0.88);
+}
+
+.film-act .film-mine {
+  flex-basis: 100%;
+  color: #9a9a9a;
+  font-size: 12px;
+}
+
+.film-btns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.film-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  border: 0;
+  border-radius: 8px;
+  background: #3a3a3a;
+  color: #ddd;
+  font: 400 14px Montserrat, sans-serif;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.film-btn:hover {
+  background: #474747;
+}
+
+.film-btn.on {
+  background: var(--pink);
+  color: #fff;
+}
+
+.acc-marks {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px 12px;
+}
+
+.toast {
+  position: fixed;
+  bottom: 28px;
+  left: 50%;
+  z-index: 70;
+  max-width: calc(100vw - 32px);
+  padding: 12px 20px;
+  border-radius: 10px;
+  background: #fff;
+  color: #1e1e1e;
+  font-size: 14px;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, 12px);
+  transition: 0.25s;
+}
+
+.toast.show {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+@media (max-width: 900px) {
+  .acc-marks {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 520px) {
+  .film-act {
+    padding: 16px;
+  }
+
+  .film-btns {
+    width: 100%;
+  }
+
+  .film-btn {
+    flex: 1;
+    justify-content: center;
+    padding: 10px 12px;
+  }
+}

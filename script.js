@@ -13,7 +13,7 @@ const paragraphs = text => text.split('\n').map(t => `<p class="film-text">${t}<
 const state = message => `<p class="state">${message}</p>`;
 const notFound = () => state('Страница не найдена');
 
-var authReady = false;
+var authReady = false; // станет true, когда загрузится блок авторизации внизу файла
 
 
 const lorem = 'Здесь будет описание. Здесь будет много букв для описания. Здесь будет много букв для описания. Здесь будет много букв для описания.';
@@ -144,6 +144,7 @@ const filmCard = f => `
     <div class="ph">${pic(f.poster)}</div>
     <h4>${f.title}</h4>
     <small>${f.genre}</small>
+    ${cardRating(f.id)}
   </a>`;
 
 const authorCard = a => `
@@ -305,8 +306,8 @@ const pages = {
       .map(t => `<p class="film-text">${t}</p>`).join('');
 
     const meta = [f.year, f.country, f.genre,
-    f.director && `Режиссер: ${f.director}`,
-    f.duration && `Длительность: ${f.duration}`].filter(Boolean).join(' · ');
+      f.director && `Режиссер: ${f.director}`,
+      f.duration && `Длительность: ${f.duration}`].filter(Boolean).join(' · ');
 
     const hasPeople = f.actors.length || f.crew.length;
 
@@ -346,6 +347,8 @@ const pages = {
 
     return `
       ${top}
+
+      ${filmActions(f)}
 
       ${player(f.video)}
 
@@ -456,6 +459,182 @@ const pages = {
     <h2 class="sub" style="margin-top:20px">Оставить заявку</h2>
     ${applyForm()}`
 };
+
+
+/* ================= Оценки, закладки, «поделиться» ================= */
+// Демо: оценки и закладки хранятся в этом браузере (localStorage). Рейтинг складывается
+// только из оценок, поставленных здесь. Когда появится сервер, замените функции
+// lsRead/lsWrite запросами к нему, чтобы рейтинг был общим для всех зрителей.
+// Это блок на функциях-декларациях и не зависит от кода авторизации ниже:
+// страница фильма рисуется раньше, чем тот код загрузится.
+
+const bookmarkIcon = `<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M6 3h12v18l-6-4.5L6 21z" fill="currentColor" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>`;
+const shareIcon = `<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="2.6"/><circle cx="6" cy="12" r="2.6"/><circle cx="18" cy="19" r="2.6"/><path d="M8.3 10.8l7.4-4.4M8.3 13.2l7.4 4.4"/></svg>`;
+
+function lsRead(key) {
+  try { return JSON.parse(localStorage.getItem(key) || '{}'); } catch { return {}; }
+}
+
+function lsWrite(key, value) {
+  try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* без хранилища */ }
+}
+
+function sessionUserId() {
+  try { return localStorage.getItem('action_demo_session') || ''; } catch { return ''; }
+}
+
+function getMarks(uid) {
+  return uid ? (lsRead('action_demo_marks')[uid] || []) : [];
+}
+
+function toggleMark(uid, filmId) {
+  const all = lsRead('action_demo_marks');
+  const id = String(filmId);
+  const list = all[uid] || [];
+  all[uid] = list.includes(id) ? list.filter(x => x !== id) : [...list, id];
+  lsWrite('action_demo_marks', all);
+}
+
+function filmRating(filmId) {
+  const votes = Object.values(lsRead('action_demo_ratings')[filmId] || {});
+  const count = votes.length;
+  return { count, avg: count ? votes.reduce((a, b) => a + b, 0) / count : 0 };
+}
+
+function myRating(uid, filmId) {
+  return uid ? Number((lsRead('action_demo_ratings')[filmId] || {})[uid]) || 0 : 0;
+}
+
+// повторный клик по той же оценке снимает её
+function setRating(uid, filmId, value) {
+  const all = lsRead('action_demo_ratings');
+  const votes = all[filmId] || {};
+  if (votes[uid] === value) delete votes[uid];
+  else votes[uid] = value;
+  all[filmId] = votes;
+  lsWrite('action_demo_ratings', all);
+}
+
+const fmtAvg = n => n.toFixed(1).replace('.', ',');
+
+function plural(n, [one, few, many]) {
+  const m10 = n % 10, m100 = n % 100;
+  return m10 === 1 && m100 !== 11 ? one
+    : m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14) ? few : many;
+}
+
+function cardRating(filmId) {
+  const { count, avg } = filmRating(filmId);
+  return count ? `<span class="fl-rate">★ ${fmtAvg(avg)}</span>` : '';
+}
+
+function filmActions(f) {
+  const uid = sessionUserId();
+  const marked = getMarks(uid).includes(String(f.id));
+  const mine = myRating(uid, f.id);
+  const { count, avg } = filmRating(f.id);
+
+  const score = count
+    ? `<b>${fmtAvg(avg)}</b><span>${count} ${plural(count, ['оценка', 'оценки', 'оценок'])}</span>`
+    : '<span>Пока нет оценок</span>';
+
+  return `
+    <div class="film-act" data-film="${f.id}">
+      <div class="film-rate">
+        <div class="film-score">${score}</div>
+        <div class="stars" role="group" aria-label="Ваша оценка">
+          ${[5, 4, 3, 2, 1].map(v => `
+            <button type="button" class="star${v <= mine ? ' on' : ''}" data-film-act="rate" data-v="${v}"
+              aria-label="Оценка ${v} из 5" title="${v}">★</button>`).join('')}
+        </div>
+        <small class="film-mine">${mine ? `Ваша оценка: ${mine}` : 'Оцените фильм'}</small>
+      </div>
+      <div class="film-btns">
+        <button type="button" class="film-btn${marked ? ' on' : ''}" data-film-act="mark" aria-pressed="${marked}">
+          ${bookmarkIcon}${marked ? 'в закладках' : 'в закладки'}</button>
+        <button type="button" class="film-btn" data-film-act="share">${shareIcon}поделиться</button>
+      </div>
+    </div>`;
+}
+
+function refreshFilmActs() {
+  $$('.film-act').forEach(box => {
+    const film = byId(films, box.dataset.film);
+    if (film) box.outerHTML = filmActions(film);
+  });
+}
+
+let toastTimer = 0;
+function toast(text) {
+  let el = $('.toast');
+  if (!el) {
+    el = document.createElement('div');
+    el.className = 'toast';
+    el.setAttribute('role', 'status');
+    document.body.append(el);
+  }
+  el.textContent = text;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 2600);
+}
+
+async function copyText(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    const area = document.createElement('textarea');
+    area.value = text;
+    area.style.cssText = 'position:fixed;opacity:0';
+    document.body.append(area);
+    area.select();
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch { /* не вышло */ }
+    area.remove();
+    return ok;
+  }
+}
+
+async function shareFilm(filmId) {
+  const f = byId(films, filmId);
+  if (!f) return;
+  const url = location.href.split('#')[0] + '#/film/' + f.id;
+
+  if (navigator.share) {
+    try {
+      await navigator.share({ title: f.title, text: `Фильм «${f.title}» — THE ACTION`, url });
+      return;
+    } catch (err) {
+      if (err && err.name === 'AbortError') return;   // человек закрыл окно
+    }
+  }
+  toast((await copyText(url)) ? 'Ссылка скопирована' : 'Скопируйте ссылку: ' + url);
+}
+
+document.addEventListener('click', e => {
+  const btn = e.target.closest('[data-film-act]');
+  if (!btn) return;
+
+  const box = btn.closest('.film-act');
+  const film = box && byId(films, box.dataset.film);
+  if (!film) return;
+
+  const act = btn.dataset.filmAct;
+  if (act === 'share') return shareFilm(film.id);
+
+  const uid = sessionUserId();
+  if (!uid) {
+    authNote = act === 'rate' ? 'Войдите, чтобы оценить фильм.' : 'Войдите, чтобы добавлять фильмы в закладки.';
+    authReturn = location.hash || '#/';
+    openAuth('login');
+    return;
+  }
+
+  if (act === 'rate') setRating(uid, film.id, Number(btn.dataset.v));
+  if (act === 'mark') toggleMark(uid, film.id);
+  refreshFilmActs();
+});
 
 
 const menu = [
@@ -799,15 +978,20 @@ const auth = {
 
 /* ---- восстановление пароля ---- */
 
-const RESET_TTL = 10 * 60 * 1000;
-const RESET_TRIES = 5;
-let resetState = null;
-let authNote = '';
+const RESET_TTL = 10 * 60 * 1000;   // код живёт 10 минут
+const RESET_TRIES = 5;              // попыток ввода кода
+let resetState = null;              // выданный код (хранится только в памяти страницы)
+let resetShown = null;              // что показать на втором шаге: { email, demoCode }
+let authNote = '';                  // сообщение над формой входа
+let authReturn = '';                // куда вернуть после входа (например, на страницу фильма)
 
-
+// ВАЖНО: сайт без сервера не может отправить письмо. В демо-режиме код показывается
+// прямо на экране. Когда появится сервер, отправьте письмо здесь (запрос на ваш бэкенд
+// или сервис вроде EmailJS), код в ответ не возвращайте и поставьте AUTH_DEMO = false.
+// На настоящем сервере код и проверку его надо хранить и делать на сервере, не в браузере.
 async function sendResetCode(email, code) {
   if (AUTH_DEMO) return code;
-
+  // await fetch('/api/password-reset', { method: 'POST', body: JSON.stringify({ email, code }) });
   return null;
 }
 
@@ -979,7 +1163,7 @@ function renderAuth(mode = 'login') {
   $('.auth-body', authBox).innerHTML =
     user ? profileView(user)
       : mode === 'register' ? registerView()
-        : mode === 'forgot' ? forgotView() : loginView();
+      : mode === 'forgot' ? forgotView() : loginView();
 }
 
 function openAuth(mode) {
@@ -992,6 +1176,7 @@ function openAuth(mode) {
 }
 
 function closeAuth() {
+  authReturn = '';
   authBox.hidden = true;
   if (!$('.credits')) document.body.style.overflow = '';
   userBtn.focus();
@@ -1048,7 +1233,7 @@ authBox.addEventListener('submit', async e => {
 
   const errors = register ? validateRegistration(data)
     : kind === 'forgot' ? validateForgot(data)
-      : kind === 'reset' ? validateReset(data) : validateLogin(data);
+    : kind === 'reset' ? validateReset(data) : validateLogin(data);
   showErrors(form, errors);
   const firstBad = Object.keys(errors)[0];
   if (firstBad) return $(`[name="${firstBad}"]`, form).focus();
@@ -1080,8 +1265,10 @@ authBox.addEventListener('submit', async e => {
     if (register) await auth.register(data);
     else await auth.login(data.login, data.password);
     updateUserButton();
+    const back = authReturn;
     closeAuth();
-    location.hash = '#/account';   // после входа открываем личный кабинет
+    if (back) refreshFilmActs();          // вошли с кнопки на странице фильма: остаёмся на ней
+    else location.hash = '#/account';     // иначе открываем личный кабинет
   } catch (error) {
     fail.textContent = error.message;
     fail.hidden = false;
@@ -1096,6 +1283,8 @@ document.addEventListener('keydown', e => {
 
 updateUserButton();
 
+
+/* ================= Личный кабинет ================= */
 
 const DEVICE_LIMIT = 5;
 
@@ -1218,6 +1407,7 @@ function accountPage() {
   const registered = devices.some(d => d.id === me);
   const plan = user.plan && PLANS.find(p => p.id === user.plan.id);
   const card = user.card;
+  const marks = getMarks(user.id).map(id => byId(films, id)).filter(Boolean);
 
   const avatar = user.avatar
     ? `<img src="${user.avatar}" alt="">`
@@ -1258,6 +1448,11 @@ function accountPage() {
 
         <h2 class="acc-h">Мои подписки</h2>
         ${subs}
+
+        <h2 class="acc-h">Закладки</h2>
+        ${marks.length
+          ? `<div class="acc-marks">${cards(marks, filmCard)}</div>`
+          : '<section class="acc-card"><p class="acc-sub">Закладок пока нет. Нажмите «в закладки» на странице фильма.</p></section>'}
       </div>
 
       <div class="acc-col">
