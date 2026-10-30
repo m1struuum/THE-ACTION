@@ -94,6 +94,62 @@ const stubFilm = i => ({
 
 const films = make(10, i => i === 0 ? vydohni : i === 1 ? poTuStoronu : stubFilm(i));
 
+// Фильмы, добавленные через админ-панель (демо: хранятся в этом браузере).
+// Тексты экранируются, ссылки и картинки проверяются: в разметку попадает только безопасное.
+const CUSTOM_FILMS_KEY = 'action_demo_films';
+
+function readCustomFilms() {
+  try {
+    const list = JSON.parse(localStorage.getItem(CUSTOM_FILMS_KEY) || '[]');
+    return Array.isArray(list) ? list : [];
+  } catch { return []; }
+}
+
+function escHtml(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g,
+    c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+function normalizeFilm(raw) {
+  const list = v => Array.isArray(v) ? v : [];
+  const img = v => /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(v || '') ? v : '';
+  const link = v => /^https?:\/\/[^\s"'<>]+$/i.test(v || '') ? v : '';
+
+  return {
+    id: String(raw.id), custom: true,
+    title: escHtml(raw.title || 'Без названия'),
+    year: escHtml(raw.year), country: escHtml(raw.country), genre: escHtml(raw.genre),
+    director: escHtml(raw.director), directorId: '', duration: escHtml(raw.duration),
+    summary: escHtml(raw.summary), description: escHtml(raw.description),
+    backdrop: img(raw.backdrop), poster: img(raw.poster), video: link(raw.video),
+    isNew: Boolean(raw.isNew), isPick: Boolean(raw.isPick),
+    actors: list(raw.actors).map(p => ({ name: escHtml(p.name), role: 'Актёр', character: escHtml(p.character), photo: img(p.photo) })),
+    crew: list(raw.crew).map(p => ({ name: escHtml(p.name), role: escHtml(p.role), photo: img(p.photo) }))
+  };
+}
+
+// новые фильмы идут первыми (самый свежий — в начале)
+films.unshift(...readCustomFilms().map(raw => normalizeFilm(raw)).reverse());
+
+// Авторы, добавленные через админ-панель
+const CUSTOM_AUTHORS_KEY = 'action_demo_authors';
+
+function readCustomAuthors() {
+  try {
+    const list = JSON.parse(localStorage.getItem(CUSTOM_AUTHORS_KEY) || '[]');
+    return Array.isArray(list) ? list : [];
+  } catch { return []; }
+}
+
+function normalizeAuthor(raw) {
+  const img = /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(raw.photo || '') ? raw.photo : '';
+  return {
+    id: String(raw.id), custom: true, pid: '',
+    name: escHtml(raw.name || 'Без имени'), role: escHtml(raw.role || 'Автор'),
+    bio: escHtml(raw.bio), photo: img
+  };
+}
+
 
 const events = make(12, () => ({
   title: 'Название мероприятия', date: '01.01', description: lorem, image: ''
@@ -122,6 +178,8 @@ const stubAuthor = () => ({
 });
 
 const authors = make(12, i => i === 0 ? emiliaAuthor : i === 1 ? alisaAuthor : stubAuthor());
+
+authors.unshift(...readCustomAuthors().map(raw => normalizeAuthor(raw)).reverse());
 
 const show = { title: 'Название шоу', description: 'Краткое описание сути шоу' };
 const episodes = make(3, i => ({ title: `серия ${i + 1}`, description: lorem, video: '' }));
@@ -248,7 +306,6 @@ const pages = {
         <li><a data-scroll="films">Наши фильмы</a></li>
         <li><a data-scroll="afisha">Афиша</a></li>
         <li><a data-scroll="about">О нас</a></li>
-        <li><a data-scroll="apply">Оставить заявку</a></li>
         <li><a data-scroll="contacts">Контакты</a></li>
       </ul>
       <img src="logo-3d.png" alt="ACTION">
@@ -278,11 +335,8 @@ const pages = {
     </section>
     <hr>
 
-    <section class="center" id="apply">
-      <h2>Оставить заявку</h2>
-      ${applyForm()}
-    </section>
-    <hr>
+    
+
 
     <section class="center" id="contacts">
       <h2>Контакты</h2>
@@ -306,8 +360,8 @@ const pages = {
       .map(t => `<p class="film-text">${t}</p>`).join('');
 
     const meta = [f.year, f.country, f.genre,
-      f.director && `Режиссер: ${f.director}`,
-      f.duration && `Длительность: ${f.duration}`].filter(Boolean).join(' · ');
+    f.director && `Режиссер: ${f.director}`,
+    f.duration && `Длительность: ${f.duration}`].filter(Boolean).join(' · ');
 
     const hasPeople = f.actors.length || f.crew.length;
 
@@ -474,6 +528,8 @@ const pages = {
         ${block('Переводы', 'Переводы фильмов для занятий.')}
       </div>`;
   },
+
+  admin: () => authReady ? adminPage() : '',
 
   terms: () => docPage('Пользовательское соглашение'),
   privacy: () => docPage('Политика конфиденциальности'),
@@ -807,6 +863,12 @@ function route() {
     return;
   }
 
+  // админ-панель: только для администратора
+  if (id === 'admin' && authReady && !isAdmin(auth.current())) {
+    location.hash = '#/';
+    return;
+  }
+
   $('#app').innerHTML = pages[id](param);
   syncArrows();
   setMenu(false);
@@ -908,7 +970,7 @@ function formatPhone(value) {
 document.addEventListener('submit', e => {
   e.preventDefault();
   const form = e.target;
-  if (form.closest('.auth, .acc')) return; // у окна входа и кабинета своя проверка
+  if (form.closest('.auth, .acc, .adm')) return; // у окна входа, кабинета и админ-панели своя проверка
   let valid = true;
 
   $$('[required]', form).forEach(input => {
@@ -944,6 +1006,12 @@ document.addEventListener('keydown', e => {
 // но это НЕ настоящая защита: пользователи не видны владельцу сайта и не переносятся между устройствами.
 // Когда появится сервер (например, PocketBase на VPS), замените методы объекта auth ниже и поставьте false.
 const AUTH_DEMO = true;
+
+// Логины администраторов. В демо любой может зарегистрировать такой логин в своём браузере,
+// но добавленные фильмы увидит только он сам. На настоящем сервере роль администратора
+// должна выдаваться и проверяться на сервере.
+const ADMIN_LOGINS = ['admin'];
+const isAdmin = user => Boolean(user && ADMIN_LOGINS.includes(String(user.login).toLowerCase()));
 
 const AUTH_USERS = 'action_demo_users';
 const AUTH_SESSION = 'action_demo_session';
@@ -1257,7 +1325,7 @@ function renderAuth(mode = 'login') {
   $('.auth-body', authBox).innerHTML =
     user ? profileView(user)
       : mode === 'register' ? registerView()
-      : mode === 'forgot' ? forgotView() : loginView();
+        : mode === 'forgot' ? forgotView() : loginView();
 }
 
 function openAuth(mode) {
@@ -1278,7 +1346,7 @@ function closeAuth() {
 
 function showErrors(form, errors) {
   $$('.auth-f', form).forEach(label => {
-    const input = $('input', label);
+    const input = $('input, textarea', label);
     const message = errors[input.name] || '';
     const note = $('.auth-err', label);
     note.textContent = message;
@@ -1327,7 +1395,7 @@ authBox.addEventListener('submit', async e => {
 
   const errors = register ? validateRegistration(data)
     : kind === 'forgot' ? validateForgot(data)
-    : kind === 'reset' ? validateReset(data) : validateLogin(data);
+      : kind === 'reset' ? validateReset(data) : validateLogin(data);
   showErrors(form, errors);
   const firstBad = Object.keys(errors)[0];
   if (firstBad) return $(`[name="${firstBad}"]`, form).focus();
@@ -1554,8 +1622,8 @@ function accountPage() {
 
         <h2 class="acc-h">Закладки</h2>
         ${marks.length
-          ? `<div class="acc-marks">${cards(marks, filmCard)}</div>`
-          : '<section class="acc-card"><p class="acc-sub">Закладок пока нет. Нажмите «в закладки» на странице фильма.</p></section>'}
+      ? `<div class="acc-marks">${cards(marks, filmCard)}</div>`
+      : '<section class="acc-card"><p class="acc-sub">Закладок пока нет. Нажмите «в закладки» на странице фильма.</p></section>'}
       </div>
 
       <div class="acc-col">
@@ -1595,6 +1663,8 @@ function accountPage() {
             </div>`).join('')}
           ${registered ? '' : `<p class="acc-note">Лимит устройств исчерпан: удалите одно, чтобы добавить это.</p>`}
         </section>
+
+        ${isAdmin(user) ? '<a class="btn acc-admin" href="#/admin">панель администратора</a>' : ''}
 
         <section class="acc-card">
           <label class="auth-check">
@@ -1765,5 +1835,347 @@ document.addEventListener('click', e => {
   renderAccount();
 });
 
+/* ================= Админ-панель ================= */
+
+let admMsg = '';
+
+const admArea = (label, name, rows, hint = '') => `
+  <label class="auth-f"><span>${label}</span>
+    <textarea name="${name}" rows="${rows}"></textarea>
+    ${hint ? `<small class="adm-hint">${hint}</small>` : ''}
+    <small class="auth-err" hidden></small>
+  </label>`;
+
+function adminPage() {
+  if (!isAdmin(auth.current())) return notFound();
+
+  const mine = films.filter(f => f.custom);
+  const myAuthors = authors.filter(a => a.custom);
+  const msg = admMsg;
+  admMsg = '';
+
+  return `
+    <div class="adm">
+      <h1>Админ-панель</h1>
+      <p class="doc-lead">Добавляйте фильмы через форму, без правки кода. Фильм сразу появится в каталоге, на странице фильма и в рядах «Новинки» и «Стоит посмотреть».</p>
+      ${msg ? `<p class="acc-msg">${esc(msg)}</p>` : ''}
+
+      <section class="acc-card">
+        <h3 class="acc-ph">Добавить фильм</h3>
+        <form data-adm-film novalidate>
+          ${authField('Название *', 'title', 'placeholder="Название фильма"')}
+          <div class="auth-row">
+            ${authField('Год', 'year', 'inputmode="numeric" maxlength="4" placeholder="2026"')}
+            ${authField('Страна', 'country', 'placeholder="Россия"')}
+          </div>
+          <div class="auth-row">
+            ${authField('Жанр', 'genre', 'placeholder="Драма, 14+"')}
+            ${authField('Длительность', 'duration', 'placeholder="12 мин"')}
+          </div>
+          ${authField('Режиссёр', 'director')}
+          ${admArea('Краткое описание', 'summary', 3, 'Показывается на обложке страницы фильма.')}
+          ${admArea('Полное описание', 'description', 6, 'Абзацы разделяйте переносом строки.')}
+          ${authField('Ссылка на видео', 'video', 'placeholder="YouTube, Google Drive или файл .mp4"')}
+          <div class="auth-row">
+            ${authField('Постер (вертикальный, 2:3)', 'poster', 'type="file" accept="image/*"')}
+            ${authField('Широкая обложка (необязательно)', 'backdrop', 'type="file" accept="image/*"')}
+          </div>
+          ${peopleBlock('actors')}
+          ${peopleBlock('crew')}
+          <label class="auth-check"><input type="checkbox" name="isNew" value="1"><span>Новинка</span></label>
+          <label class="auth-check"><input type="checkbox" name="isPick" value="1"><span>Стоит посмотреть</span></label>
+          <button class="btn">добавить фильм</button>
+          <p class="auth-fail" hidden></p>
+        </form>
+      </section>
+
+      <section class="acc-card">
+        <h3 class="acc-ph">Добавить автора</h3>
+        <form data-adm-author novalidate>
+          ${authField('Имя Фамилия *', 'name')}
+          ${authField('Должность', 'role', 'placeholder="Режиссёр"')}
+          ${admArea('Об авторе', 'bio', 4)}
+          ${authField('Фото', 'photo', 'type="file" accept="image/*"')}
+          <button class="btn">добавить автора</button>
+          <p class="auth-fail" hidden></p>
+        </form>
+      </section>
+
+      <h2 class="acc-h">Добавленные фильмы</h2>
+      ${mine.length ? `
+        <div class="adm-list">
+          ${mine.map(f => `
+            <div class="acc-card adm-item">
+              <div class="adm-thumb">${f.poster ? `<img src="${f.poster}" alt="">` : ''}</div>
+              <div class="adm-info">
+                <b>${f.title}</b>
+                <small>${[f.year, f.genre].filter(Boolean).join(' · ')}</small>
+              </div>
+              <div class="adm-btns">
+                <a class="pill" href="#/film/${f.id}">открыть</a>
+                <button type="button" class="pill" data-adm="del" data-id="${f.id}">удалить</button>
+              </div>
+            </div>`).join('')}
+        </div>
+        <button type="button" class="btn adm-export" data-adm="export">скачать список (JSON)</button>`
+      : '<section class="acc-card"><p class="acc-sub">Пока нет добавленных фильмов.</p></section>'}
+
+      <h2 class="acc-h">Добавленные авторы</h2>
+      ${myAuthors.length ? `
+        <div class="adm-list">
+          ${myAuthors.map(a => `
+            <div class="acc-card adm-item">
+              <div class="adm-thumb">${a.photo ? `<img src="${a.photo}" alt="">` : ''}</div>
+              <div class="adm-info"><b>${a.name}</b><small>${a.role}</small></div>
+              <div class="adm-btns">
+                <a class="pill" href="#/author/${a.id}">открыть</a>
+                <button type="button" class="pill" data-adm="del-author" data-id="${a.id}">удалить</button>
+              </div>
+            </div>`).join('')}
+        </div>`
+      : '<section class="acc-card"><p class="acc-sub">Пока нет добавленных авторов.</p></section>'}
+    </div>`;
+}
+
+const PEOPLE = {
+  actors: { title: 'В ролях', note: 'Персонаж' },
+  crew: { title: 'Над фильмом работали', note: 'Должность' }
+};
+
+const personRow = kind => `
+  <div class="adm-person">
+    <label class="adm-photo" title="Прикрепить фото">
+      <span>фото</span><img alt="" hidden>
+      <input type="file" accept="image/*" hidden>
+    </label>
+    <div class="adm-person-f">
+      <input class="adm-p-name" placeholder="Имя Фамилия" maxlength="80">
+      <input class="adm-p-note" placeholder="${PEOPLE[kind].note}" maxlength="80">
+    </div>
+    <button type="button" class="adm-x" data-adm="del-person" aria-label="Убрать">×</button>
+  </div>`;
+
+const peopleBlock = kind => `
+  <div class="adm-people" data-people="${kind}">
+    <div class="adm-people-head">
+      <span>${PEOPLE[kind].title}</span>
+      <button type="button" class="pill" data-adm="add-person" data-kind="${kind}">+ добавить</button>
+    </div>
+    <div class="adm-rows">${personRow(kind)}</div>
+  </div>`;
+
+// собирает людей из формы вместе с фото
+async function collectPeople(form, kind) {
+  const out = [];
+  for (const row of $$(`[data-people="${kind}"] .adm-person`, form)) {
+    const name = $('.adm-p-name', row).value.trim();
+    if (!name) continue;
+    const note = $('.adm-p-note', row).value.trim();
+    const photo = await fileToDataUrl($('input[type="file"]', row).files[0], 400, 0.85);
+    out.push(kind === 'actors'
+      ? { name, character: note, photo }
+      : { name, role: note || 'Участник съёмочной группы', photo });
+  }
+  return out;
+}
+
+// показывает выбранное фото в кружке
+document.addEventListener('change', e => {
+  const input = e.target;
+  if (!input.matches || !input.matches('.adm-photo input')) return;
+
+  const label = input.closest('.adm-photo');
+  const img = $('img', label);
+  const hint = $('span', label);
+  const file = input.files[0];
+
+  if (img.dataset.url) URL.revokeObjectURL(img.dataset.url);
+  if (file && file.type.startsWith('image/')) {
+    img.dataset.url = URL.createObjectURL(file);
+    img.src = img.dataset.url;
+    img.hidden = false;
+    hint.hidden = true;
+  } else {
+    img.hidden = true;
+    hint.hidden = false;
+  }
+});
+
+function renderAdmin() {
+  if (!/^#\/admin/.test(location.hash)) return;
+  $('#app').innerHTML = adminPage();
+  window.scrollTo({ top: 0 });
+}
+
+// уменьшает картинку и возвращает JPEG в виде data-URL (пустая строка, если файла нет)
+const fileToDataUrl = (file, maxSide, quality) => new Promise((resolve, reject) => {
+  if (!(file instanceof File) || !file.size) return resolve('');
+  if (!file.type.startsWith('image/')) return reject(new Error('Выберите файл-изображение'));
+
+  const url = URL.createObjectURL(file);
+  const img = new Image();
+  img.onload = () => {
+    const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round(img.width * scale);
+    canvas.height = Math.round(img.height * scale);
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#1e1e1e';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    URL.revokeObjectURL(url);
+    resolve(canvas.toDataURL('image/jpeg', quality));
+  };
+  img.onerror = () => {
+    URL.revokeObjectURL(url);
+    reject(new Error('Не удалось прочитать изображение'));
+  };
+  img.src = url;
+});
+
+document.addEventListener('submit', async e => {
+  const form = e.target.closest('[data-adm-film]');
+  if (!form || !isAdmin(auth.current())) return;
+
+  const data = Object.fromEntries(new FormData(form));
+  const text = key => String(data[key] || '').trim();
+
+  const errors = {};
+  if (!text('title')) errors.title = 'Укажите название';
+  if (text('year') && !/^\d{4}$/.test(text('year'))) errors.year = '4 цифры';
+  if (text('video') && !/^https?:\/\/[^\s"'<>]+$/i.test(text('video'))) errors.video = 'Ссылка должна начинаться с http:// или https://';
+
+  showErrors(form, errors);
+  const firstBad = Object.keys(errors)[0];
+  if (firstBad) return $(`[name="${firstBad}"]`, form).focus();
+
+  const button = $('.btn', form);
+  const fail = $('.auth-fail', form);
+  fail.hidden = true;
+  button.disabled = true;
+  button.textContent = 'Сохраняем…';
+
+  try {
+    const raw = {
+      id: 'c' + Date.now().toString(36),
+      title: text('title'), year: text('year'), country: text('country'), genre: text('genre'),
+      duration: text('duration'), director: text('director'),
+      summary: text('summary'), description: text('description'), video: text('video'),
+      poster: await fileToDataUrl(data.poster, 600, 0.85),
+      backdrop: await fileToDataUrl(data.backdrop, 1920, 0.8),
+      isNew: Boolean(data.isNew), isPick: Boolean(data.isPick),
+      actors: await collectPeople(form, 'actors'),
+      crew: await collectPeople(form, 'crew')
+    };
+
+    const list = readCustomFilms();
+    list.push(raw);
+    try {
+      localStorage.setItem(CUSTOM_FILMS_KEY, JSON.stringify(list));
+    } catch {
+      throw new Error('Не хватило места в браузере: уменьшите картинки или удалите старые фильмы');
+    }
+
+    films.unshift(normalizeFilm(raw));   // новый фильм встаёт первым
+    admMsg = 'Фильм добавлен';
+    renderAdmin();
+  } catch (error) {
+    fail.textContent = error.message;
+    fail.hidden = false;
+    button.disabled = false;
+    button.textContent = 'добавить фильм';
+  }
+});
+
+document.addEventListener('submit', async e => {
+  const form = e.target.closest('[data-adm-author]');
+  if (!form || !isAdmin(auth.current())) return;
+
+  const data = Object.fromEntries(new FormData(form));
+  const text = key => String(data[key] || '').trim();
+
+  const errors = {};
+  if (!text('name')) errors.name = 'Укажите имя';
+  showErrors(form, errors);
+  if (errors.name) return $('[name="name"]', form).focus();
+
+  const button = $('.btn', form);
+  const fail = $('.auth-fail', form);
+  fail.hidden = true;
+  button.disabled = true;
+  button.textContent = 'Сохраняем…';
+
+  try {
+    const raw = {
+      id: 'a' + Date.now().toString(36),
+      name: text('name'), role: text('role'), bio: text('bio'),
+      photo: await fileToDataUrl(data.photo, 600, 0.85)
+    };
+
+    const list = readCustomAuthors();
+    list.push(raw);
+    try {
+      localStorage.setItem(CUSTOM_AUTHORS_KEY, JSON.stringify(list));
+    } catch {
+      throw new Error('Не хватило места в браузере: уменьшите фото или удалите старые записи');
+    }
+
+    authors.unshift(normalizeAuthor(raw));
+    admMsg = 'Автор добавлен';
+    renderAdmin();
+  } catch (error) {
+    fail.textContent = error.message;
+    fail.hidden = false;
+    button.disabled = false;
+    button.textContent = 'добавить автора';
+  }
+});
+
+document.addEventListener('click', e => {
+  const btn = e.target.closest('.adm [data-adm]');
+  if (!btn || !isAdmin(auth.current())) return;
+
+  if (btn.dataset.adm === 'del') {
+    if (!confirm('Удалить этот фильм?')) return;
+    const id = btn.dataset.id;
+    try {
+      localStorage.setItem(CUSTOM_FILMS_KEY, JSON.stringify(readCustomFilms().filter(f => String(f.id) !== id)));
+    } catch { /* без хранилища */ }
+    const i = films.findIndex(f => String(f.id) === id && f.custom);
+    if (i >= 0) films.splice(i, 1);
+    admMsg = 'Фильм удалён';
+    renderAdmin();
+  }
+
+  if (btn.dataset.adm === 'add-person') {
+    $('.adm-rows', btn.closest('.adm-people')).insertAdjacentHTML('beforeend', personRow(btn.dataset.kind));
+  }
+
+  if (btn.dataset.adm === 'del-person') {
+    btn.closest('.adm-person').remove();
+  }
+
+  if (btn.dataset.adm === 'del-author') {
+    if (!confirm('Удалить этого автора?')) return;
+    const id = btn.dataset.id;
+    try {
+      localStorage.setItem(CUSTOM_AUTHORS_KEY, JSON.stringify(readCustomAuthors().filter(a => String(a.id) !== id)));
+    } catch { /* без хранилища */ }
+    const i = authors.findIndex(a => String(a.id) === id && a.custom);
+    if (i >= 0) authors.splice(i, 1);
+    admMsg = 'Автор удалён';
+    renderAdmin();
+  }
+
+  if (btn.dataset.adm === 'export') {
+    const blob = new Blob([JSON.stringify(readCustomFilms(), null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'films.json';
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  }
+});
+
 authReady = true;
-if (/^#\/account/.test(location.hash)) route();
+if (/^#\/(account|admin)/.test(location.hash)) route();
