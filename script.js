@@ -19,9 +19,12 @@ var authReady = false; // станет true, когда загрузится б�
 const lorem = 'Здесь будет описание. Здесь будет много букв для описания. Здесь будет много букв для описания. Здесь будет много букв для описания.';
 const make = (n, fn) => Array.from({ length: n }, (_, i) => ({ id: i + 1, ...fn(i) }));
 
+// уровни лексики в фильме (поле vocab) — для фильтра студенческой и преподавательской подписок
+const VOCAB_LEVELS = ['Лёгкая', 'Средняя', 'Повышенная'];
+
 
 const vydohni = {
-  title: 'Выдохни', year: 2026, country: 'Россия', genre: 'Социальная драма',
+  title: 'Выдохни', year: 2026, country: 'Россия', language: 'Русский', genre: 'Социальная драма',
   director: 'Алиса Сергеева', directorId: 'alisa-sergeeva', duration: '',
   summary: '«Выдохни» — короткометражный фильм о молодой матери, которая в заботе о ребёнке постепенно забывает о себе. Оставшись один на один с младенцем, она сталкивается с усталостью, одиночеством и потерей собственной личности.',
   description: [
@@ -29,6 +32,9 @@ const vydohni = {
   ].join('\n'),
   backdrop: 'img/vydohni-hero.jpg',
   poster: 'img/vydohni.jpg', video: 'https://youtu.be/ZaKhUAJvSd4?si=iT8E09_NkApAMQKY',
+  materials: [],   // пример: [{ title: 'Лексика к фильму', text: 'Короткое описание', link: 'https://...' }]
+  vocab: '',       // уровень лексики: 'Лёгкая', 'Средняя' или 'Повышенная'
+  tasks: false,    // есть ли задания к фильму (true / false)
   isNew: true,
   isPick: false,
   actors: [
@@ -45,7 +51,7 @@ const vydohni = {
 };
 
 const poTuStoronu = {
-  title: 'По ту сторону кадра', year: 2026, country: 'Россия', genre: 'Драма, 14+',
+  title: 'По ту сторону кадра', year: 2026, country: 'Россия', language: 'Русский', genre: 'Драма, 14+',
   director: 'Карапетова Эмилия', directorId: 'emilia-karapetova', duration: '',
   summary: '«По ту сторону кадра» — короткометражный игровой фильм о молодой девушке, которая сталкивается с суровой реальностью кинопроизводства. Её идеализированные представления о кино постепенно разрушаются, заставляя переосмыслить собственные мечты, ценности и отношение к творчеству.',
   description: [
@@ -57,6 +63,9 @@ const poTuStoronu = {
   ].join('\n'),
   backdrop: 'img/po-tu-storonu-hero.jpg',
   poster: 'img/po-tu-storonu-kadra.jpg', video: '',
+  materials: [],
+  vocab: '',
+  tasks: false,
   isNew: true,
   isPick: false,
   actors: [
@@ -83,9 +92,11 @@ const poTuStoronu = {
 };
 
 const stubFilm = i => ({
-  title: 'Название фильма', year: 1234, country: 'Россия', genre: 'Комедия',
+  title: 'Название фильма', year: 1234, country: 'Россия', language: 'Русский', genre: 'Комедия',
   director: 'Артемов', duration: '1,38', description: lorem,
   poster: '', video: '',
+  vocab: VOCAB_LEVELS[i % 3],   // демо-значения для заглушек
+  tasks: i % 2 === 0,
   isNew: i < 6,
   isPick: i > 3,
   actors: make(5, () => ({ name: 'ФИ актера', role: 'роль', photo: '' })),
@@ -118,11 +129,12 @@ function normalizeFilm(raw) {
   return {
     id: String(raw.id), custom: true,
     title: escHtml(raw.title || 'Без названия'),
-    year: escHtml(raw.year), country: escHtml(raw.country), genre: escHtml(raw.genre),
+    year: escHtml(raw.year), country: escHtml(raw.country), language: escHtml(raw.language), genre: escHtml(raw.genre),
     director: escHtml(raw.director), directorId: '', duration: escHtml(raw.duration),
     summary: escHtml(raw.summary), description: escHtml(raw.description),
     backdrop: img(raw.backdrop), poster: img(raw.poster), video: link(raw.video),
     isNew: Boolean(raw.isNew), isPick: Boolean(raw.isPick),
+    vocab: VOCAB_LEVELS.includes(raw.vocab) ? raw.vocab : '', tasks: Boolean(raw.tasks),
     actors: list(raw.actors).map(p => ({ name: escHtml(p.name), role: 'Актёр', character: escHtml(p.character), photo: img(p.photo) })),
     crew: list(raw.crew).map(p => ({ name: escHtml(p.name), role: escHtml(p.role), photo: img(p.photo) }))
   };
@@ -153,10 +165,6 @@ function normalizeAuthor(raw) {
 
 const events = make(12, () => ({
   title: 'Название мероприятия', date: '01.01', description: lorem, image: ''
-}));
-
-const premieres = make(6, i => ({
-  title: 'Название фильма', date: '01.01', description: lorem, image: '', filmId: i + 1
 }));
 
 const alisaAuthor = {
@@ -198,7 +206,9 @@ const eventCard = (e, page) => `
   </a>`;
 
 const filmCard = f => `
-  <a class="fl" href="#/film/${f.id}">
+  <a class="fl" href="#/film/${f.id}" data-genres="${genreList(f).join('|').toLowerCase()}" data-lang="${langKey(f)}"
+     data-year="${String(f.year || '').trim()}" data-country="${String(f.country || '').trim().toLowerCase()}"
+     data-vocab="${String(f.vocab || '').toLowerCase()}" data-tasks="${f.tasks ? '1' : '0'}">
     <div class="ph">${pic(f.poster)}</div>
     <h4>${f.title}</h4>
     <small>${f.genre}</small>
@@ -275,8 +285,120 @@ function player(url) {
          allow="autoplay; fullscreen; picture-in-picture"></iframe></div>`;
 }
 
+// Слайды раздела «О нас». Меняйте тексты, фото и ссылки только здесь, вёрстка подхватит.
+const aboutSlides = [
+  {
+    photo: 'img/about-1.jpg',
+    title: 'Кино, которое выходит за рамки экрана.',
+    text: [
+      'The Action — онлайн-кинотеатр авторского кино, где независимые истории находят своего зрителя.',
+      'Смотрите фильмы, короткий метр и оригинальные шоу со всего мира. Открывайте новые имена, культуры и смыслы.'
+    ],
+    buttons: [{ label: 'Открыть каталог фильмов', link: '#/films' }]
+  },
+  {
+    photo: '',
+    gfx: true,   // графический слайд без фото
+    title: 'Английский, который выходит за рамки учебников.',
+    text: [
+      'Изучайте английский язык через авторское кино вместе с The Action. Смотрите фильмы в оригинале, погружайтесь в живую речь и закрепляйте знания с помощью интерактивных заданий, двойных субтитров, транскрипций и разбора лексики.',
+      'Для преподавателей мы создали особые возможности: организуйте собственные онлайн-кинопросмотры, приглашайте студентов по ссылке, смотрите фильмы вместе и обсуждайте их в формате полноценного занятия.',
+      'Используйте образовательные материалы, задания и эксклюзивный контент от авторов фильмов для подготовки уроков. А ещё открывайте лекции и образовательные мероприятия по подписке.'
+    ],
+    featuresTitle: 'Возможности The Action',
+    features: [
+      { icon: 'users', text: 'Свои онлайн-кинопросмотры' },
+      { icon: 'subs', text: 'Двойные субтитры' },
+      { icon: 'doc', text: 'Транскрипции и лексика' },
+      { icon: 'book', text: 'Задания и материалы для уроков' },
+      { icon: 'video', text: 'Лекции и мастер-классы' },
+      { icon: 'star', text: 'Контент от авторов' }
+    ],
+    buttons: [
+      { label: 'Выбрать подписку', link: '#/plans' },
+      { label: 'Изучить подробнее', link: '#/teachers', ghost: true }
+    ]
+  },
+  {
+    photo: 'img/about-3.jpg',
+    title: 'Не только на экране. Встречаемся вживую.',
+    text: [
+      'The Action — больше, чем онлайн-кинотеатр. Это пространство, где зрители, кинематографисты и творческие люди становятся частью единого сообщества.',
+      'В нашей афише — офлайн-кинопоказы, фестивали, творческие встречи, мастер-классы и мероприятия партнёров. Смотрите кино на большом экране, знакомьтесь с авторами, обсуждайте фильмы и находите единомышленников.',
+      'А если хочется присоединиться из любой точки мира — посещайте онлайн-лекции и встречи с приглашёнными экспертами. Часть событий доступна бесплатно.'
+    ],
+    buttons: [{ label: 'Афиша мероприятий', link: '#/afisha' }]
+  }
+];
+
+const aboutIcons = {
+  users: '<circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.6 2.7-5.6 6-5.6s6 2 6 5.6"/><circle cx="17.5" cy="9" r="2.4"/><path d="M17 14.6c2.4 0 4 1.5 4 4.4"/>',
+  subs: '<rect x="3" y="5" width="18" height="14" rx="3"/><path d="M7 11h10M7 15h6"/>',
+  doc: '<rect x="5" y="3" width="14" height="18" rx="3"/><path d="M9 9h6M9 13h6"/>',
+  book: '<path d="M12 6c-2-1.5-5-2-9-2v14c4 0 7 .5 9 2 2-1.5 5-2 9-2V4c-4 0-7 .5-9 2zM12 6v14"/>',
+  video: '<rect x="2.5" y="6" width="13" height="12" rx="3"/><path d="M15.5 10.5l6-3v9l-6-3z"/>',
+  star: '<path d="M12 3l2.7 5.6 6.1.8-4.5 4.3 1.1 6.1L12 16.8 6.6 19.8l1.1-6.1L3.2 9.4l6.1-.8z"/>'
+};
+
+const aboutIcon = name =>
+  `<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${aboutIcons[name] || ''}</svg>`;
+
+function aboutSlider() {
+  const total = aboutSlides.length;
+  const arrow = (dir, label, sign) =>
+    `<button type="button" class="about-arr about-arr-${dir > 0 ? 'next' : 'prev'}" data-about-dir="${dir}" aria-label="${label}">${sign}</button>`;
+
+  return `
+    <div class="about-slider" role="region" aria-roledescription="carousel" aria-label="О нас">
+      <div class="about-track" tabindex="0">
+        ${aboutSlides.map((s, i) => `
+          <article class="about-slide${s.gfx ? ' about-gfx' : ''}" aria-label="Слайд ${i + 1} из ${total}">
+            ${s.gfx ? '' : `<div class="ph about-photo">${pic(s.photo)}</div>`}
+            ${i > 0 ? arrow(-1, 'Предыдущий слайд', '‹') : ''}
+            ${i < total - 1 ? arrow(1, 'Следующий слайд', '›') : ''}
+            <div class="about-body">
+              <h3 class="about-title">${s.title}</h3>
+              ${s.text.map(t => `<p class="about-text">${t}</p>`).join('')}
+              ${s.features ? `
+                <div class="about-feats">
+                  ${s.featuresTitle ? `<h4>${s.featuresTitle}</h4>` : ''}
+                  <ul>${s.features.map(f => `<li>${aboutIcon(f.icon)}<span>${f.text}</span></li>`).join('')}</ul>
+                </div>` : ''}
+              <div class="about-btns">
+                ${s.buttons.map(b => `<a class="btn about-btn${b.ghost ? ' about-btn-ghost' : ''}" href="${b.link}">${b.label} ↗</a>`).join('')}
+              </div>
+            </div>
+          </article>`).join('')}
+      </div>
+    </div>`;
+}
+
+// Кто отправляет заявку на странице «Сотрудничество»
+const roleOptions = [
+  ['person', 'Просто человек'],
+  ['author', 'Автор'],
+  ['advertiser', 'Рекламодатель']
+];
+
+// подсказка в поле «Описание запроса» меняется вместе с выбором
+const roleHints = {
+  person: 'Расскажите ваш запрос',
+  author: 'Расскажите о себе и своём проекте: фильм, сценарий, ссылки на работы',
+  advertiser: 'Расскажите о компании и о том, какое сотрудничество вам интересно'
+};
+
 const applyForm = () => `
   <form class="form" novalidate>
+    <div class="role-field">
+      <span class="role-t">Кто вы:</span>
+      <div class="roles" role="radiogroup" aria-label="Кто отправляет заявку">
+        ${roleOptions.map(([value, label], i) => `
+          <label class="role">
+            <input type="radio" name="role" value="${value}"${i === 0 ? ' checked' : ''}>
+            <span>${label}</span>
+          </label>`).join('')}
+      </div>
+    </div>
     <label>Ваши ФИ:
       <input name="name" placeholder="Фамилия Имя" required>
     </label>
@@ -290,6 +412,236 @@ const applyForm = () => `
     <p class="ok" hidden>Спасибо! Заявка отправлена.</p>
   </form>`;
 
+
+// Контакты. Меняйте данные и вопросы только здесь, вёрстка подхватит.
+const contacts = {
+  telegram: 'https://t.me/',   // TODO: вставьте ссылку на ваш чат в Telegram
+  email: 'theactionproduction@yandex.ru',
+  requisites: [
+    'ИП Карапетова Эмилия Вахтанговна',
+    'ИНН 402810576541',
+    'ОГРНИП 324400000040914'
+  ]
+};
+
+// Вопросы и ответы (черновик: поправьте формулировки под себя)
+const faq = [
+  {
+    q: 'Что такое The Action?',
+    a: 'Онлайн-кинотеатр авторского кино: фильмы, короткий метр и оригинальные шоу, а также афиша офлайн- и онлайн-мероприятий.'
+  },
+  {
+    q: 'Как начать смотреть?',
+    a: 'Откройте каталог, выберите фильм и запустите плеер на его странице. Чтобы оценивать фильмы и сохранять их в закладки, войдите в аккаунт через значок профиля вверху страницы.'
+  },
+  {
+    q: 'Сколько устройств можно подключить?',
+    a: 'До 5 устройств на один аккаунт. Список устройств можно посмотреть и изменить в личном кабинете.'   // если меняете DEVICE_LIMIT ниже — меняйте и здесь
+  },
+  {
+    q: 'Как оформить подписку?',
+    a: 'Выберите подписку на странице <a href="#/plans">«Подписки»</a>: войти в аккаунт нужно только после выбора. Для оформления нужно привязать способ оплаты в личном кабинете.'
+  },
+  {
+    q: 'Что входит в студенческую подписку?',
+    a: 'Переводы фильмов и учебные файлы к ним. Оформить подписку можно в личном кабинете.'
+  },
+  {
+    q: 'Я преподаватель. Что для меня?',
+    a: 'Подписка преподавателя открывает образовательный контент к фильмам и возможность проводить конференции. Подробнее на странице <a href="#/teachers">«Для преподавателей»</a>.'
+  },
+  {
+    q: 'Забыли пароль?',
+    a: 'В окне входа нажмите «Забыли пароль?», укажите почту, и мы вышлем одноразовый код для смены пароля.'
+  },
+  {
+    q: 'Как предложить сотрудничество?',
+    a: 'Оставьте заявку на странице <a href="#/coop">«Сотрудничество»</a> или напишите нам на почту.'
+  }
+];
+
+const contactIcons = {
+  faq: '<circle cx="12" cy="12" r="9"/><path d="M9.6 9.4a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1.1 1-1.1 1.8"/><path d="M12 17h.01"/>',
+  telegram: '<path d="M21 4L3 11l6 2.2L11 20l3-4.2 5 3.7L21 4z"/><path d="M9 13.2L21 4"/>',
+  mail: '<rect x="3" y="5" width="18" height="14" rx="3"/><path d="M3.5 7.5L12 13l8.5-5.5"/>'
+};
+
+const contactIcon = name =>
+  `<span class="c-ico"><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${contactIcons[name]}</svg></span>`;
+
+const contactsBlock = () => `
+  <div class="contacts">
+    <div class="c-tiles">
+      <button type="button" class="c-tile" data-faq aria-expanded="false" aria-controls="faq">
+        ${contactIcon('faq')}
+        <span class="c-txt"><b>Вопросы и ответы</b><small>Ответы на частые вопросы</small></span>
+        <span class="c-go c-chev" aria-hidden="true"></span>
+      </button>
+      <div class="faq" id="faq" hidden>
+        ${faq.map(item => `
+          <details>
+            <summary>${item.q}</summary>
+            <p>${item.a}</p>
+          </details>`).join('')}
+      </div>
+      <a class="c-tile c-tile-main" href="${contacts.telegram}" target="_blank" rel="noopener">
+        ${contactIcon('telegram')}
+        <span class="c-txt"><b>Чат в Telegram</b><small>Написать нам в мессенджере</small></span>
+        <span class="c-go" aria-hidden="true">↗</span>
+      </a>
+      <a class="c-tile" href="mailto:${contacts.email}">
+        ${contactIcon('mail')}
+        <span class="c-txt"><b>Почта для связи</b><small>${contacts.email}</small></span>
+        <span class="c-go" aria-hidden="true">↗</span>
+      </a>
+    </div>
+
+    <div class="contacts-req">${contacts.requisites.map(r => `<span>${r}</span>`).join('')}</div>
+  </div>`;
+
+/* ---- материалы к фильму (по преподавательской подписке) ---- */
+
+const matIcons = {
+  book: '<path d="M12 6c-2-1.5-5-2-9-2v14c4 0 7 .5 9 2 2-1.5 5-2 9-2V4c-4 0-7 .5-9 2zM12 6v14"/>',
+  lock: '<rect x="5" y="11" width="14" height="10" rx="3"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>'
+};
+
+const matIcon = (name, size = 24) =>
+  `<svg viewBox="0 0 24 24" width="${size}" height="${size}" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${matIcons[name]}</svg>`;
+
+// материалы задаются у фильма: materials: [{ title, text, link }]
+function materialsBlock(f) {
+  if (!hasStudyAccess()) {
+    return `
+      <div class="mat">
+        <span class="mat-ico">${matIcon('lock', 26)}</span>
+        <div>
+          <h4>Материалы к фильму для обучения</h4>
+          <p>Учебные файлы, задания и материалы для уроков открываются со студенческой или преподавательской подпиской.</p>
+          <a class="btn" href="#/plans">оформить подписку</a>
+        </div>
+      </div>`;
+  }
+
+  const list = (Array.isArray(f.materials) ? f.materials : []).filter(m => m && m.title);
+  if (!list.length) return `
+    <div class="mat">
+      <span class="mat-ico">${matIcon('book', 26)}</span>
+      <div>
+        <h4>Доступ открыт</h4>
+        <p>Материалы к этому фильму появятся здесь.</p>
+      </div>
+    </div>`;
+
+  return `<div class="mat-list">${list.map(m => {
+    const link = /^https?:\/\//i.test(m.link || '') ? m.link : '';
+    const inner = `
+      <span class="mat-ico">${matIcon('book')}</span>
+      <span class="mat-txt"><b>${m.title}</b>${m.text ? `<small>${m.text}</small>` : ''}</span>
+      ${link ? '<span class="mat-go" aria-hidden="true">↗</span>' : ''}`;
+    return link
+      ? `<a class="mat-item" href="${link}" target="_blank" rel="noopener">${inner}</a>`
+      : `<div class="mat-item">${inner}</div>`;
+  }).join('')}</div>`;
+}
+
+/* ---- фильтры каталога: жанр и язык ---- */
+
+// жанры берём из поля genre: «Драма, комедия, 14+» → драма, комедия (возрастной рейтинг не считается)
+function genreList(f) {
+  return String(f.genre || '').split(',').map(s => s.trim()).filter(g => g && !/^\d{1,2}\+$/.test(g));
+}
+
+let filmFilter = { genre: '', lang: '', year: '', country: '', vocab: '', tasks: '' };
+
+// язык фильма для фильтра: ru или en
+function langKey(f) {
+  const l = String(f.language || '').toLowerCase();
+  return /англ|english/.test(l) ? 'en' : /рус|russian/.test(l) ? 'ru' : '';
+}
+
+const filterBar = () => {
+  const genres = new Map();
+  const years = new Map();
+  const countries = new Map();
+  films.forEach(f => {
+    genreList(f).forEach(g => genres.set(g.toLowerCase(), g));
+    const y = String(f.year || '').trim();
+    if (y) years.set(y, y);
+    const c = String(f.country || '').trim();
+    if (c) countries.set(c.toLowerCase(), c);
+  });
+  const byLabel = (a, b) => a[1].localeCompare(b[1], 'ru');
+
+  const group = (key, title, map) => `
+    <div class="filt">
+      <span class="filt-t">${title}</span>
+      <div class="filt-chips">
+        <button type="button" class="chip on" data-filter="${key}" data-val="">Все</button>
+        ${[...map].map(([v, label]) =>
+          `<button type="button" class="chip" data-filter="${key}" data-val="${v}">${label}</button>`).join('')}
+      </div>
+    </div>`;
+
+  // лексика и задания — только для студенческой и преподавательской подписок
+  const study = hasStudyAccess()
+    ? group('vocab', 'Лексика', VOCAB_LEVELS.map(v => [v.toLowerCase(), v]))
+      + group('tasks', 'Задания', [['0', 'Без заданий'], ['1', 'С заданиями']])
+    : '<p class="filt-lock">Фильтры по лексике и заданиям открываются с <a href="#/plans">студенческой или преподавательской подпиской</a>.</p>';
+
+  return `
+  <div class="filt-wrap">
+    <button type="button" class="filt-toggle" data-filt-toggle aria-expanded="false" aria-controls="filters">
+      <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16l-6 7.5V19l-4-2v-4.5z"/></svg>
+      Фильтры <span class="filt-count" hidden></span>
+    </button>
+    <div class="filters" id="filters" hidden>
+      ${group('genre', 'Жанр', [...genres].sort(byLabel))}
+      ${group('lang', 'Язык', [['ru', 'Русский'], ['en', 'Английский']])}
+      ${group('year', 'Год', [...years].sort((a, b) => Number(b[0]) - Number(a[0])))}
+      ${group('country', 'Страна', [...countries].sort(byLabel))}
+      ${study}
+      <div class="filt-foot">
+        <button type="button" class="pill" data-filt-reset>сбросить</button>
+        <button type="button" class="btn" data-filt-close>готово</button>
+      </div>
+    </div>
+  </div>`;
+};
+
+// поиск и фильтры работают вместе; пустые ряды скрываются
+function applyFilters() {
+  const input = $('.search input');
+  const query = input ? input.value.trim().toLowerCase() : '';
+  const onFilms = document.body.className === 'films';
+
+  $$('.ev, .fl, .au').forEach(card => {
+    let ok = card.textContent.toLowerCase().includes(query);
+    if (ok && onFilms && card.classList.contains('fl')) {
+      const genres = (card.dataset.genres || '').split('|');
+      ok = (!filmFilter.genre || genres.includes(filmFilter.genre))
+        && (!filmFilter.lang || card.dataset.lang === filmFilter.lang)
+        && (!filmFilter.year || card.dataset.year === filmFilter.year)
+        && (!filmFilter.country || card.dataset.country === filmFilter.country)
+        && (!filmFilter.vocab || card.dataset.vocab === filmFilter.vocab)
+        && (filmFilter.tasks === '' || card.dataset.tasks === filmFilter.tasks);
+    }
+    card.style.display = ok ? '' : 'none';
+  });
+
+  if (!onFilms) return;
+
+  let visible = 0;
+  $$('#app > section').forEach(sec => {
+    const any = $$('.fl', sec).some(c => c.style.display !== 'none');
+    sec.hidden = !any;
+    const hr = sec.nextElementSibling;
+    if (hr && hr.tagName === 'HR') hr.hidden = !any;
+    if (any) visible++;
+  });
+  const empty = $('#no-films');
+  if (empty) empty.hidden = visible > 0;
+}
 
 const pages = {
 
@@ -327,11 +679,7 @@ const pages = {
     <hr>
 
     <section class="center" id="about">
-      <h2>О нас</h2>
-      <div class="about">
-        <p>тут будет краткая или не очень история данной кинокомпании, обычно эту информацию не читают, но любознательные люди могут и почитать. скорее всего рядом может быть одна или несколько фотографий, связанных с историей.</p>
-        <div class="ph"></div>
-      </div>
+      ${aboutSlider()}
     </section>
     <hr>
 
@@ -340,26 +688,30 @@ const pages = {
 
     <section class="center" id="contacts">
       <h2>Контакты</h2>
-      <p style="font-size:14px; margin:30px 0 60px; color:var(--txt)">тут будет информация о контактных данных.</p>
+      ${contactsBlock()}
     </section>`,
 
-  films: () =>
-    titleBar('Фильмы') +
-    filmRow('Наши фильмы', films) +
-    filmRow('Новинки', films.filter(f => f.isNew)) +
-    filmRow('Стоит посмотреть', films.filter(f => f.isPick)),
+  films: () => {
+    filmFilter = { genre: '', lang: '', year: '', country: '', vocab: '', tasks: '' };
+    return titleBar('Фильмы') +
+      filterBar() +
+      filmRow('Наши фильмы', films) +
+      filmRow('Стоит посмотреть', films.filter(f => f.isPick)) +
+      filmRow('Новинки', films.filter(f => f.isNew)) +
+      '<p class="state" id="no-films" hidden>По вашему запросу ничего не найдено</p>';
+  },
 
   film: id => {
     const f = byId(films, id);
     if (!f) return notFound();
 
-    const specs = [['Год производства:', f.year], ['Страна:', f.country], ['Жанр:', f.genre],
+    const specs = [['Год производства:', f.year], ['Страна:', f.country], ['Язык:', f.language], ['Жанр:', f.genre],
     ['Режиссер:', f.director], ['Длительность:', f.duration]].filter(([, v]) => v);
 
     const paragraphs = list => list.filter(Boolean).join('\n').split('\n')
       .map(t => `<p class="film-text">${t}</p>`).join('');
 
-    const meta = [f.year, f.country, f.genre,
+    const meta = [f.year, f.country, f.language, f.genre,
     f.director && `Режиссер: ${f.director}`,
     f.duration && `Длительность: ${f.duration}`].filter(Boolean).join(' · ');
 
@@ -394,10 +746,16 @@ const pages = {
         <div class="tabs-bar" role="tablist">
           <button class="tab on" role="tab" aria-selected="true" data-tab="descr">Описание</button>
           ${hasPeople ? '<button class="tab" role="tab" aria-selected="false" data-tab="crew">Создатели</button>' : ''}
+          <button class="tab tab-hl" role="tab" aria-selected="false" data-tab="mat">${matIcon('book', 18)}<span>Материалы</span><i>для обучения</i></button>
         </div>
         <div class="tab-panel" data-panel="descr">${paragraphs([f.description])}</div>
         ${hasPeople ? `<div class="tab-panel" data-panel="crew" hidden>${castCrew}</div>` : ''}
-      </section>` : castCrew;
+        <div class="tab-panel" data-panel="mat" hidden>${materialsBlock(f)}</div>
+      </section>` : `${castCrew}
+      <section class="mat-sec">
+        <h3 class="film-h">Материалы</h3>
+        ${materialsBlock(f)}
+      </section>`;
 
     return `
       ${top}
@@ -426,24 +784,6 @@ const pages = {
           <span class="detail-date">${e.date}</span>
           <h1 class="film-title">${e.title}</h1>
           <p class="film-text">${e.description}</p>
-        </div>
-      </section>`;
-  },
-
-  premieres: () =>
-    titleBar('Премьеры') +
-    `<div class="grid2">${cards(premieres, p => eventCard(p, 'premiere'))}</div>`,
-
-  premiere: id => {
-    const p = byId(premieres, id);
-    if (!p) return notFound();
-    return `
-      <section class="detail">
-        <div class="ph">${pic(p.image, 'изображение')}</div>
-        <div>
-          <h1 class="film-title">${p.title}</h1>
-          <p class="film-text">${p.description}</p>
-          <a class="btn" href="#/film/${p.filmId}">смотреть</a>
         </div>
       </section>`;
   },
@@ -508,24 +848,32 @@ const pages = {
 
   account: () => authReady ? accountPage() : '',
 
+  plans: () => authReady ? plansPage() : '',
+
   teachers: () => {
-    const open = hasTeacherAccess();
-    const lock = `
-      <p class="acc-sub">Откроется после оформления подписки «Преподавателям».</p>
-      <a class="btn" href="#/account">оформить подписку</a>`;
-    const block = (title, text) => `
+    const lockTeach = `
+      <p class="acc-sub">Откроется после оформления преподавательской подписки.</p>
+      <a class="btn" href="#/plans">оформить подписку</a>`;
+    const lockStudy = `
+      <p class="acc-sub">Откроется после оформления студенческой или преподавательской подписки.</p>
+      <a class="btn" href="#/plans">оформить подписку</a>`;
+    // переводы и учебные файлы открыты и студентам; конференции только преподавателям
+    const block = (title, text, soon = 'Материалы появятся здесь.', teachOnly = false) => `
       <section class="acc-card">
         <h3 class="acc-ph">${title}</h3>
         <p class="acc-sub">${text}</p>
-        ${open ? '<p class="acc-sub teach-open">Доступ открыт. Материалы появятся здесь.</p>' : lock}
+        ${(teachOnly ? hasTeacherAccess() : hasStudyAccess())
+          ? `<p class="acc-sub teach-open">Доступ открыт. ${soon}</p>`
+          : (teachOnly ? lockTeach : lockStudy)}
       </section>`;
 
     return `
       <h1>Для преподавателей</h1>
-      <p class="doc-lead">Фильмы кинотеатра можно использовать на занятиях: к ним есть образовательные материалы и переводы.</p>
+      <p class="doc-lead">Фильмы кинотеатра можно использовать на занятиях: к ним есть образовательные материалы и переводы, а занятия можно проводить в формате конференций.</p>
       <div class="grid2 teach">
-        ${block('Образовательные материалы', 'Материалы для работы с фильмами на занятиях.')}
+        ${block('Учебные файлы', 'Материалы для работы с фильмами на занятиях и для учёбы.')}
         ${block('Переводы', 'Переводы фильмов для занятий.')}
+        ${block('Конференции', 'Проводите онлайн-занятия и встречи со студентами.', 'Создавайте конференции в <a href="#/account">личном кабинете</a>.', true)}
       </div>`;
   },
 
@@ -744,6 +1092,7 @@ siteFooter.innerHTML = `
   <nav class="foot-nav" aria-label="Информация">
     <a href="#/" data-goto="about">О нас</a>
     <a href="#/" data-goto="contacts">Контакты</a>
+    <a href="#/plans">Подписки</a>
     <a href="#/teachers">Для преподавателей</a>
     <a href="#/terms">Пользовательское соглашение</a>
     <a href="#/privacy">Политика конфиденциальности</a>
@@ -756,6 +1105,15 @@ document.addEventListener('click', e => {
   e.preventDefault();
   goSection(link.dataset.goto);
 });
+
+// учебные файлы и переводы: студенческая или преподавательская подписка
+function hasStudyAccess() {
+  try {
+    const users = JSON.parse(localStorage.getItem('action_demo_users') || '[]');
+    const me = users.find(u => u.id === sessionUserId());
+    return Boolean(me && me.plan && (me.plan.id === 'student' || me.plan.id === 'teach'));
+  } catch { return false; }
+}
 
 // доступ к материалам для преподавателей: есть активная подписка «Преподавателям»
 function hasTeacherAccess() {
@@ -779,7 +1137,6 @@ const menu = [
   { id: 'home', title: 'Главная' },
   { id: 'films', title: 'Фильмы' },
   { id: 'afisha', title: 'Афиша' },
-  { id: 'premieres', title: 'Премьеры' },
   { id: 'show', title: 'Шоу' },
   { id: 'partners', title: 'Авторы' },
   { id: 'coop', title: 'Сотрудничество' }
@@ -798,7 +1155,7 @@ function setMenu(open) {
 
 
 const parentTab = {
-  film: 'films', person: 'films', event: 'afisha', premiere: 'premieres', episode: 'show', author: 'partners'
+  film: 'films', person: 'films', event: 'afisha', episode: 'show', author: 'partners'
 };
 
 function closeCredits() {
@@ -944,12 +1301,7 @@ document.addEventListener('scroll', e => {
 document.addEventListener('input', e => {
   const field = e.target;
 
-  if (field.matches('.search input')) {
-    const query = field.value.trim().toLowerCase();
-    $$('.ev, .fl, .au').forEach(card => {
-      card.style.display = card.textContent.toLowerCase().includes(query) ? '' : 'none';
-    });
-  }
+  if (field.matches('.search input')) applyFilters();
 
   if (field.name === 'phone') {
     field.value = formatPhone(field.value);
@@ -987,6 +1339,8 @@ document.addEventListener('submit', e => {
 
   $('.ok', form).hidden = false;
   form.reset();
+  const msgField = $('textarea[name="msg"]', form);
+  if (msgField && typeof roleHints !== 'undefined') msgField.placeholder = roleHints.person;
 });
 
 document.addEventListener('keydown', e => {
@@ -997,6 +1351,108 @@ document.addEventListener('keydown', e => {
     e.preventDefault();
     box.classList.toggle('paused');
   }
+});
+
+
+/* ---- сотрудничество: выбор роли меняет подсказку в поле запроса ---- */
+
+document.addEventListener('change', e => {
+  const radio = e.target;
+  if (!radio.matches || !radio.matches('.roles input')) return;
+  const area = $('textarea[name="msg"]', radio.closest('form'));
+  if (area) area.placeholder = roleHints[radio.value] || roleHints.person;
+});
+
+/* ---- фильтры каталога: клик по кнопке жанра или языка ---- */
+
+document.addEventListener('click', e => {
+  const chip = e.target.closest('[data-filter]');
+  if (!chip) return;
+  const key = chip.dataset.filter;
+  filmFilter[key] = chip.dataset.val;
+  $$(`[data-filter="${key}"]`).forEach(c => c.classList.toggle('on', c === chip));
+  applyFilters();
+  syncArrows();
+  updateFilterBadge();
+});
+
+/* ---- фильтры каталога: выскакивающая плашка ---- */
+
+function setFiltersOpen(open) {
+  const panel = $('#filters');
+  const btn = $('[data-filt-toggle]');
+  if (!panel || !btn) return;
+  panel.hidden = !open;
+  btn.setAttribute('aria-expanded', open);
+}
+
+// число включённых фильтров на кнопке, когда плашка закрыта
+function updateFilterBadge() {
+  const n = Object.values(filmFilter).filter(v => v !== '').length;
+  const badge = $('.filt-count');
+  if (!badge) return;
+  badge.textContent = n;
+  badge.hidden = !n;
+}
+
+document.addEventListener('click', e => {
+  if (e.target.closest('[data-filt-toggle]')) {
+    const panel = $('#filters');
+    return setFiltersOpen(Boolean(panel && panel.hidden));
+  }
+  if (e.target.closest('[data-filt-close]')) return setFiltersOpen(false);
+
+  if (e.target.closest('[data-filt-reset]')) {
+    filmFilter = { genre: '', lang: '', year: '', country: '', vocab: '', tasks: '' };
+    $$('[data-filter]').forEach(c => c.classList.toggle('on', c.dataset.val === ''));
+    applyFilters();
+    syncArrows();
+    updateFilterBadge();
+    return;
+  }
+
+  if (!e.target.closest('.filt-wrap')) setFiltersOpen(false);   // клик вне плашки закрывает её
+});
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') setFiltersOpen(false);
+});
+
+/* ---- контакты: раскрывающийся список вопросов ---- */
+
+document.addEventListener('click', e => {
+  const btn = e.target.closest('[data-faq]');
+  if (!btn) return;
+  const panel = $('#faq');
+  if (!panel) return;
+  const open = panel.hidden;
+  panel.hidden = !open;
+  btn.setAttribute('aria-expanded', open);
+});
+
+/* ---- слайдер «О нас»: стрелки и клавиатура (свайп работает через scroll-snap) ---- */
+
+function aboutStep(direction) {
+  const track = $('.about-track');
+  if (track) track.scrollBy({ left: direction * track.clientWidth, behavior: 'smooth' });
+}
+
+document.addEventListener('click', e => {
+  const btn = e.target.closest('[data-about-dir]');
+  if (btn) aboutStep(Number(btn.dataset.aboutDir));
+});
+
+document.addEventListener('keydown', e => {
+  if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+  const track = $('.about-track');
+  if (!track || $('.credits') || !authBox.hidden) return;
+  if (e.target.closest && e.target.closest('input, textarea, select, [contenteditable]')) return;
+
+  const rect = track.getBoundingClientRect();
+  if (rect.bottom < 0 || rect.top > innerHeight) return;   // слайдер сейчас не на экране
+
+  e.preventDefault();
+  aboutStep(e.key === 'ArrowLeft' ? -1 : 1);
 });
 
 
@@ -1339,6 +1795,7 @@ function openAuth(mode) {
 
 function closeAuth() {
   authReturn = '';
+  pendingPlan = '';
   authBox.hidden = true;
   if (!$('.credits')) document.body.style.overflow = '';
   userBtn.focus();
@@ -1346,7 +1803,7 @@ function closeAuth() {
 
 function showErrors(form, errors) {
   $$('.auth-f', form).forEach(label => {
-    const input = $('input, textarea', label);
+    const input = $('input, textarea, select', label);
     const message = errors[input.name] || '';
     const note = $('.auth-err', label);
     note.textContent = message;
@@ -1428,7 +1885,9 @@ authBox.addEventListener('submit', async e => {
     else await auth.login(data.login, data.password);
     updateUserButton();
     const back = authReturn;
+    const plan = pendingPlan;             // подписка, которую выбрали до входа
     closeAuth();
+    if (plan) return startPlan(plan);
     if (back) refreshFilmActs();          // вошли с кнопки на странице фильма: остаёмся на ней
     else location.hash = '#/account';     // иначе открываем личный кабинет
   } catch (error) {
@@ -1452,11 +1911,16 @@ const DEVICE_LIMIT = 5;
 
 // Демо-тарифы: названия и цены замените на свои
 const PLANS = [
-  { id: 'base', title: 'Базовая', price: '199 ₽ / мес', text: 'Каталог авторских фильмов' },
+  { id: 'base', title: 'Обычная', price: '199 ₽ / мес', text: 'Каталог авторских фильмов' },
   {
-    id: 'teach', title: 'Преподавателям', price: '399 ₽ / мес',
+    id: 'student', title: 'Студенческая', price: '149 ₽ / мес',   // TODO: цена демо, поставьте свою
+    text: 'Для студентов. После оформления открываются:',
+    items: ['Переводы', 'Учебные файлы']
+  },
+  {
+    id: 'teach', title: 'Преподавательская', price: '399 ₽ / мес',
     text: 'Для занятий с фильмами. После оформления открываются:',
-    items: ['Образовательные материалы', 'Переводы']
+    items: ['Образовательные материалы', 'Переводы', 'Конференции']
   }
 ];
 
@@ -1620,6 +2084,8 @@ function accountPage() {
         <h2 class="acc-h">Мои подписки</h2>
         ${subs}
 
+        ${hasTeacherAccess() ? confSection(user) : ''}
+
         <h2 class="acc-h">Закладки</h2>
         ${marks.length
       ? `<div class="acc-marks">${cards(marks, filmCard)}</div>`
@@ -1681,6 +2147,156 @@ function accountPage() {
 function renderAccount() {
   if (/^#\/account/.test(location.hash)) $('#app').innerHTML = accountPage();
 }
+
+/* ---- конференции преподавателя (Zoom) ---- */
+// Демо: список хранится в этом браузере. Преподаватель создаёт встречу в своём Zoom, вставляет ссылку сюда
+// и отправляет студентам. Доступ по подписке на стороне браузера не защищён: при появлении сервера
+// храните конференции и проверяйте подписку там.
+const CONFS_KEY = 'action_demo_confs';
+const ZOOM_RE = /^https:\/\/([\w-]+\.)*(zoom\.us|zoom\.com|zoomgov\.com)\/[^\s"'<>]+$/i;
+
+const readConfs = () => {
+  try {
+    const list = JSON.parse(localStorage.getItem(CONFS_KEY) || '[]');
+    return Array.isArray(list) ? list : [];
+  } catch { return []; }
+};
+
+function confSection(user) {
+  const list = readConfs()
+    .filter(c => c.owner === user.id && ZOOM_RE.test(c.link || ''))
+    .sort((a, b) => String(a.when).localeCompare(String(b.when)));
+  const fmt = v => {
+    const d = new Date(v);
+    return isNaN(d) ? '' : d.toLocaleString('ru-RU', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' });
+  };
+  const past = c => Date.parse(c.when) + 3 * 3600 * 1000 < Date.now();
+
+  return `
+    <h2 class="acc-h">Конференции</h2>
+    <section class="acc-card">
+      <p class="acc-sub">Создайте встречу в своём аккаунте Zoom, вставьте ссылку сюда и отправьте её студентам. Показ экрана включается кнопкой «Демонстрация экрана» внутри Zoom.</p>
+      <form data-acc-conf novalidate>
+        ${authField('Название занятия', 'title', 'maxlength="80" placeholder="Лексика к фильму"')}
+        <div class="auth-row">
+          ${authField('Дата и время', 'when', 'type="datetime-local"')}
+          ${authField('Ссылка Zoom', 'link', 'type="url" placeholder="https://zoom.us/j/..."')}
+        </div>
+        <button class="btn">добавить</button>
+      </form>
+    </section>
+    <section class="acc-card">
+      ${list.length ? list.map(c => `
+        <div class="acc-row">
+          <div>
+            <b>${esc(c.title)}</b>
+            <small>${fmt(c.when)}${past(c) ? ' · прошла' : ''}</small>
+          </div>
+          <div class="adm-btns">
+            <a class="pill acc-pill" href="${esc(c.link)}" target="_blank" rel="noopener">начать</a>
+            <button type="button" class="pill acc-pill" data-acc="conf-copy" data-id="${esc(c.id)}">ссылка</button>
+            <button type="button" class="pill acc-pill" data-acc="conf-del" data-id="${esc(c.id)}">удалить</button>
+          </div>
+        </div>`).join('')
+      : '<p class="acc-sub">Конференций пока нет.</p>'}
+    </section>`;
+}
+
+document.addEventListener('submit', e => {
+  const form = e.target.closest('[data-acc-conf]');
+  if (!form) return;
+  const user = auth.current();
+  if (!user || !hasTeacherAccess()) return;
+
+  const data = Object.fromEntries(new FormData(form));
+  const title = String(data.title || '').trim();
+  const link = String(data.link || '').trim();
+  const errors = {};
+  if (!title) errors.title = 'Укажите название';
+  if (!data.when || isNaN(new Date(data.when))) errors.when = 'Укажите дату и время';
+  if (!ZOOM_RE.test(link)) errors.link = 'Нужна ссылка Zoom: https://…zoom.us/…';
+
+  showErrors(form, errors);
+  const bad = Object.keys(errors)[0];
+  if (bad) return $(`[name="${bad}"]`, form).focus();
+
+  const list = readConfs();
+  list.push({ id: 'z' + Date.now().toString(36), owner: user.id, title, when: data.when, link });
+  try {
+    localStorage.setItem(CONFS_KEY, JSON.stringify(list));
+    accMsg = 'Конференция добавлена';
+  } catch { accMsg = 'Не удалось сохранить: браузер не даёт записать данные'; }
+  renderAccount();
+});
+
+/* ---- выбор подписки до входа ---- */
+
+let pendingPlan = '';   // подписка, которую человек выбрал, пока не вошёл или не привязал карту
+
+function plansPage() {
+  const user = auth.current();
+  const current = user && user.plan ? user.plan.id : '';
+  return `
+    <h1>Подписки</h1>
+    <p class="doc-lead">Выберите подходящую подписку. Войти или зарегистрироваться предложим после выбора.</p>
+    <div class="grid2 plans">
+      ${PLANS.map(p => `
+        <section class="acc-card acc-offer">
+          <div>
+            <h4>${esc(p.title)}</h4>
+            <p class="acc-sub">${esc(p.text)}</p>
+            ${planItems(p)}
+            <p class="acc-sub">${esc(p.price)}</p>
+          </div>
+          ${current === p.id
+      ? '<span class="acc-state">Активна</span>'
+      : `<button type="button" class="btn" data-plan-pick="${p.id}">оформить</button>`}
+        </section>`).join('')}
+    </div>`;
+}
+
+// включает подписку текущему пользователю, возвращает её название
+function activatePlan(planId) {
+  const plan = PLANS.find(p => p.id === planId);
+  if (!plan || !auth.current()) return '';
+  const next = new Date();
+  next.setMonth(next.getMonth() + 1);
+  auth.update({ plan: { id: plan.id, next: next.toISOString() } });
+  return plan.title;
+}
+
+function startPlan(planId) {
+  const user = auth.current();
+  const plan = PLANS.find(p => p.id === planId);
+  if (!user || !plan) return;
+
+  if (user.card) {
+    pendingPlan = '';
+    activatePlan(planId);
+    accMsg = `Подписка «${plan.title}» оформлена`;
+  } else {
+    pendingPlan = planId;
+    accOpen = 'pay';
+    accMsg = `Привяжите способ оплаты — подписка «${plan.title}» оформится автоматически`;
+  }
+  updateUserButton();
+  if (location.hash === '#/account') renderAccount(); else location.hash = '#/account';
+}
+
+document.addEventListener('click', e => {
+  const btn = e.target.closest('[data-plan-pick]');
+  if (!btn) return;
+  const plan = PLANS.find(p => p.id === btn.dataset.planPick);
+  if (!plan) return;
+
+  if (!auth.current()) {
+    pendingPlan = plan.id;
+    authNote = `Войдите или зарегистрируйтесь, чтобы оформить подписку «${plan.title}».`;
+    openAuth('login');
+    return;
+  }
+  startPlan(plan.id);
+});
 
 const readAvatar = file => new Promise((resolve, reject) => {
   const url = URL.createObjectURL(file);
@@ -1784,6 +2400,11 @@ document.addEventListener('submit', async e => {
   auth.update({ card: { last4: p.last4 } });
   accCardPending = null;
   accMsg = 'Карта привязана';
+  if (pendingPlan) {                    // подписка была выбрана раньше — оформляем её сразу
+    const title = activatePlan(pendingPlan);
+    pendingPlan = '';
+    if (title) accMsg = `Карта привязана, подписка «${title}» оформлена`;
+  }
   renderAccount();
 });
 
@@ -1830,6 +2451,16 @@ document.addEventListener('click', e => {
     accMsg = 'Карта отвязана';
   } else if (action === 'dev-del') {
     auth.update({ devices: (user.devices || []).filter(d => d.id !== btn.dataset.id) });
+  } else if (action === 'conf-del') {
+    try {
+      localStorage.setItem(CONFS_KEY, JSON.stringify(
+        readConfs().filter(c => !(c.id === btn.dataset.id && c.owner === user.id))));
+    } catch { /* без хранилища */ }
+    accMsg = 'Конференция удалена';
+  } else if (action === 'conf-copy') {
+    const conf = readConfs().find(c => c.id === btn.dataset.id && c.owner === user.id);
+    if (conf) copyText(conf.link).then(ok => toast(ok ? 'Ссылка скопирована' : 'Скопируйте ссылку: ' + conf.link));
+    return;
   }
 
   renderAccount();
@@ -1869,10 +2500,13 @@ function adminPage() {
             ${authField('Страна', 'country', 'placeholder="Россия"')}
           </div>
           <div class="auth-row">
-            ${authField('Жанр', 'genre', 'placeholder="Драма, 14+"')}
+            ${authField('Жанр (через запятую)', 'genre', 'placeholder="Драма, комедия, 14+"')}
             ${authField('Длительность', 'duration', 'placeholder="12 мин"')}
           </div>
-          ${authField('Режиссёр', 'director')}
+          <div class="auth-row">
+            ${authField('Режиссёр', 'director')}
+            ${authField('Язык', 'language', 'placeholder="Русский"')}
+          </div>
           ${admArea('Краткое описание', 'summary', 3, 'Показывается на обложке страницы фильма.')}
           ${admArea('Полное описание', 'description', 6, 'Абзацы разделяйте переносом строки.')}
           ${authField('Ссылка на видео', 'video', 'placeholder="YouTube, Google Drive или файл .mp4"')}
@@ -1882,6 +2516,11 @@ function adminPage() {
           </div>
           ${peopleBlock('actors')}
           ${peopleBlock('crew')}
+          <label class="auth-f"><span>Лексика</span>
+            <select name="vocab"><option value="">не указана</option>${VOCAB_LEVELS.map(v => `<option>${v}</option>`).join('')}</select>
+            <small class="auth-err" hidden></small>
+          </label>
+          <label class="auth-check"><input type="checkbox" name="tasks" value="1"><span>Есть задания к фильму</span></label>
           <label class="auth-check"><input type="checkbox" name="isNew" value="1"><span>Новинка</span></label>
           <label class="auth-check"><input type="checkbox" name="isPick" value="1"><span>Стоит посмотреть</span></label>
           <button class="btn">добавить фильм</button>
@@ -2058,12 +2697,13 @@ document.addEventListener('submit', async e => {
   try {
     const raw = {
       id: 'c' + Date.now().toString(36),
-      title: text('title'), year: text('year'), country: text('country'), genre: text('genre'),
+      title: text('title'), year: text('year'), country: text('country'), language: text('language'), genre: text('genre'),
       duration: text('duration'), director: text('director'),
       summary: text('summary'), description: text('description'), video: text('video'),
       poster: await fileToDataUrl(data.poster, 600, 0.85),
       backdrop: await fileToDataUrl(data.backdrop, 1920, 0.8),
       isNew: Boolean(data.isNew), isPick: Boolean(data.isPick),
+      vocab: text('vocab'), tasks: Boolean(data.tasks),
       actors: await collectPeople(form, 'actors'),
       crew: await collectPeople(form, 'crew')
     };
@@ -2178,4 +2818,103 @@ document.addEventListener('click', e => {
 });
 
 authReady = true;
-if (/^#\/(account|admin)/.test(location.hash)) route();
+if (/^#\/(account|admin|plans)/.test(location.hash)) route();
+
+
+/* ================= Всплывающие баннеры ================= */
+// Баннеры появляются в случайное время и в случайном порядке, каждый — один раз за визит.
+// Тексты и ссылки меняйте здесь.
+const promos = [
+  {
+    id: 'english',
+    tag: 'Учи английский',
+    title: 'Учи английский через авторское кино',
+    text: 'Смотри фильмы в оригинале: двойные субтитры, транскрипции и разбор лексики.',
+    button: 'Узнать подробнее',
+    link: '#/teachers'
+  },
+  {
+    id: 'plans',
+    tag: 'Подписки',
+    title: 'Три подписки на любой вкус',
+    items: [   // если меняете тарифы в PLANS — поправьте и здесь
+      ['Обычная', 'каталог авторских фильмов'],
+      ['Студенческая', 'переводы и учебные файлы к фильмам'],
+      ['Преподавательская', 'материалы к фильмам, переводы и конференции']
+    ],
+    button: 'Выбрать подписку',
+    link: '#/plans'
+  }
+];
+
+// показан ли баннер на этой загрузке страницы. В хранилище не пишем: на телефоне вкладка живёт днями,
+// и баннер перестал бы появляться после первого раза.
+let promoDone = false;
+const promoShown = () => promoDone;
+const promoMark = () => { promoDone = true; };
+
+const randBetween = (a, b) => a + Math.random() * (b - a);
+
+let promoEl = null;
+
+// не перебиваем личный кабинет, админку, титры, окно входа и скрытую вкладку
+const promoBlocked = () =>
+  /^#\/(account|admin)/.test(location.hash) || $('.credits') || !authBox.hidden || document.hidden;
+
+// при заходе на сайт показываем ОДИН случайный баннер (один раз за визит)
+function tryShowPromo(attempt = 0) {
+  if (promoShown() || promoEl) return;
+  if (promoBlocked()) {
+    if (attempt < 30) setTimeout(() => tryShowPromo(attempt + 1), 4000);   // не время — попробуем позже
+    return;
+  }
+  showPromo(promos[Math.floor(Math.random() * promos.length)]);
+}
+
+function showPromo(p) {
+  promoMark();
+
+  const el = document.createElement('aside');
+  el.className = 'promo';
+  el.setAttribute('role', 'dialog');
+  el.setAttribute('aria-label', p.title);
+  el.innerHTML = `
+    <button type="button" class="promo-x" aria-label="Закрыть">×</button>
+    <span class="promo-tag">${p.tag}</span>
+    <h4>${p.title}</h4>
+    ${p.text ? `<p>${p.text}</p>` : ''}
+    ${p.items ? `<ul class="promo-list">${p.items.map(([name, desc]) =>
+      `<li><b>${name}</b><span>${desc}</span></li>`).join('')}</ul>` : ''}
+    <a class="btn" href="${p.link}">${p.button} ↗</a>`;
+  // окно по центру экрана на затемнённом фоне
+  const wrap = document.createElement('div');
+  wrap.className = 'promo-wrap';
+  wrap.append(el);
+  document.body.append(wrap);
+  promoEl = el;
+  requestAnimationFrame(() => wrap.classList.add('show'));
+
+  const onKey = e => { if (e.key === 'Escape') close(); };
+  function close() {
+    if (promoEl !== el) return;
+    promoEl = null;
+    document.removeEventListener('keydown', onKey);
+    wrap.classList.remove('show');
+    setTimeout(() => wrap.remove(), 400);
+  }
+
+  // закрывается: крестиком, кликом по затемнённому фону, Esc или переходом по кнопке
+  wrap.addEventListener('click', e => {
+    if (e.target === wrap || e.target.closest('.promo-x, a')) close();
+  });
+  document.addEventListener('keydown', onKey);
+}
+
+setTimeout(tryShowPromo, randBetween(2, 5) * 1000);
+
+// телефон: возврат на сайт кнопкой «назад» или из фона тоже считается заходом
+addEventListener('pageshow', e => {
+  if (!e.persisted) return;
+  promoDone = false;
+  setTimeout(tryShowPromo, randBetween(1, 3) * 1000);
+});
